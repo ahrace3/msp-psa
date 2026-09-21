@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% set active = 'companies' %}
+{% block title %}{{ company.name }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ company.name }}</h1>
+    <div class="sub">
+      <span class="mono">{{ company.identifier }}</span> ·
+      <span class="state {{ company.status }}">{{ company.status }}</span>
+      {% if company.city %} · {{ company.city }}{% if company.state %}, {{ company.state }}{% endif %}{% endif %}
+    </div>
+  </div>
+  <a class="btn secondary" href="/companies/{{ company.id }}/edit">Edit company</a>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="value">{{ contacts | length }}</div><div class="label">Contacts</div></div>
+  <div class="stat"><div class="value">{{ licensed_count }}</div><div class="label">Licensed users</div></div>
+  <div class="stat"><div class="value">{{ configurations | length }}</div><div class="label">Configurations</div></div>
+  <div class="stat"><div class="value">{{ billable_configs }}</div><div class="label">Billable devices</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Contacts</h2>
+    <a class="btn secondary" href="/contacts/new?company_id={{ company.id }}">Add contact</a>
+  </div>
+  {% if contacts %}
+  <table>
+    <thead><tr><th>Name</th><th>Title</th><th>Email</th><th>Phone</th><th>Licensed</th><th>Source</th><th></th></tr></thead>
+    <tbody>
+      {% for c in contacts %}
+      <tr>
+        <td>{{ c.display_name }}{% if c.is_primary %} <span class="flag">primary</span>{% endif %}</td>
+        <td>{{ c.title or "—" }}</td>
+        <td class="mono">{{ c.email or "—" }}</td>
+        <td>{{ c.phone or "—" }}</td>
+        <td><span class="flag {{ 'yes' if c.is_licensed else '' }}">{{ "yes" if c.is_licensed else "no" }}</span></td>
+        <td>{{ c.license_source }}</td>
+        <td><a href="/contacts/{{ c.id }}/edit">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No contacts yet. Add them by hand now, or let the Microsoft 365 sync fill them in once Phase 3 is live.</p>
+    <a class="btn" href="/contacts/new?company_id={{ company.id }}">Add contact</a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Configurations</h2>
+    <a class="btn secondary" href="/configurations/new?company_id={{ company.id }}">Add configuration</a>
+  </div>
+  {% if configurations %}
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Serial</th><th>Last user</th><th>Billable</th><th></th></tr></thead>
+    <tbody>
+      {% for cfg in configurations %}
+      <tr>
+        <td>{{ cfg.name }}</td>
+        <td>{{ cfg.config_type.replace("_", " ") }}</td>
+        <td><span class="state {{ cfg.status }}">{{ cfg.status }}</span></td>
+        <td class="mono">{{ cfg.serial_number or "—" }}</td>
+        <td class="mono">{{ cfg.last_logged_in_user or "—" }}</td>
+        <td><span class="flag {{ 'yes' if cfg.billable else '' }}">{{ "yes" if cfg.billable else "no" }}</span></td>
+        <td><a href="/configurations/{{ cfg.id }}/edit">Edit</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No devices recorded. The NinjaRMM sync will populate these automatically once the org ID above is set and Phase 2 is live.</p>
+    <a class="btn" href="/configurations/new?company_id={{ company.id }}">Add configuration</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if company.notes %}
+<div class="panel">
+  <div class="panel-head"><h2>Notes</h2></div>
+  <div style="padding:14px;white-space:pre-wrap">{{ company.notes }}</div>
+</div>
+{% endif %}
+{% endblock %}

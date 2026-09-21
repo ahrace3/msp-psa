@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% set active = 'dashboard' %}
+{% block title %}Dashboard · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Dashboard</h1>
+    <div class="sub">Phase 0. Tickets, agreements and integrations land in later phases.</div>
+  </div>
+  <a class="btn" href="/companies/new">Add company</a>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="value">{{ counts.companies }}</div><div class="label">Active companies</div></div>
+  <div class="stat"><div class="value">{{ counts.contacts }}</div><div class="label">Active contacts</div></div>
+  <div class="stat"><div class="value">{{ counts.licensed }}</div><div class="label">Licensed users</div></div>
+  <div class="stat"><div class="value">{{ counts.configurations }}</div><div class="label">Active configurations</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Recently added companies</h2><a href="/companies">All companies</a></div>
+  {% if recent %}
+  <table>
+    <thead><tr><th>Company</th><th>ID</th><th>Status</th><th>Ninja org</th></tr></thead>
+    <tbody>
+      {% for c in recent %}
+      <tr>
+        <td><a href="/companies/{{ c.id }}">{{ c.name }}</a></td>
+        <td class="mono">{{ c.identifier }}</td>
+        <td><span class="state {{ c.status }}">{{ c.status }}</span></td>
+        <td class="mono">{{ c.ninja_org_id or "—" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No companies yet. Add your first client to start building out contacts and devices.</p>
+    <a class="btn" href="/companies/new">Add company</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

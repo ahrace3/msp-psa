@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% set active = 'contacts' %}
+{% block title %}{{ "Edit contact" if contact else "Add contact" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit contact" if contact else "Add contact" }}</h1>
+</div>
+
+<form method="post" action="{{ '/contacts/' ~ contact.id ~ '/edit' if contact else '/contacts/new' }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field full">
+        <label for="company_id">Company</label>
+        <select id="company_id" name="company_id" required>
+          {% for c in companies %}
+          <option value="{{ c.id }}" {% if preselect == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="first_name">First name</label>
+        <input id="first_name" name="first_name" type="text" required value="{{ contact.first_name if contact else '' }}">
+      </div>
+      <div class="field">
+        <label for="last_name">Last name</label>
+        <input id="last_name" name="last_name" type="text" required value="{{ contact.last_name if contact else '' }}">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" value="{{ contact.email if contact else '' }}">
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" type="text" value="{{ contact.phone if contact else '' }}">
+      </div>
+      <div class="field">
+        <label for="title">Job title</label>
+        <input id="title" name="title" type="text" value="{{ contact.title if contact else '' }}">
+      </div>
+      <div class="field">
+        <label for="upn">Sign-in name (UPN)</label>
+        <input id="upn" name="upn" type="text" value="{{ contact.upn if contact else '' }}"
+               placeholder="Matches devices to this person">
+      </div>
+
+      <div class="field full">
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="is_active" {% if not contact or contact.is_active %}checked{% endif %}> Active</label>
+          <label class="check"><input type="checkbox" name="is_primary" {% if contact and contact.is_primary %}checked{% endif %}> Primary contact</label>
+          <label class="check"><input type="checkbox" name="is_licensed" {% if contact and contact.is_licensed %}checked{% endif %}> Has a paid license</label>
+          <label class="check"><input type="checkbox" name="billable_user" {% if not contact or contact.billable_user %}checked{% endif %}> Counts toward billing</label>
+        </div>
+      </div>
+
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes">{{ contact.notes if contact else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if contact else "Create contact" }}</button>
+      <a class="btn secondary" href="{{ '/companies/' ~ contact.company_id if contact else '/contacts' }}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}
