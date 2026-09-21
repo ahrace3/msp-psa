@@ -8,8 +8,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
 from app.db import get_db
-from app.models import Company, Configuration, Contact, User
-from app.routes import auth, companies, configurations, contacts
+from app.models import Company, Configuration, Contact, Status, Ticket, User
+from app.routes import auth, companies, configurations, contacts, tickets
 from app.security import current_user
 from app.templating import templates
 
@@ -30,6 +30,7 @@ app.include_router(auth.router)
 app.include_router(companies.router)
 app.include_router(contacts.router)
 app.include_router(configurations.router)
+app.include_router(tickets.router)
 
 
 @app.exception_handler(StarletteHTTPException)
@@ -73,6 +74,11 @@ def dashboard(
             select(func.count(Configuration.id)).where(
                 Configuration.status == "active"
             )
+        ),
+        "open_tickets": db.scalar(
+            select(func.count(Ticket.id))
+            .join(Status, Ticket.status_id == Status.id)
+            .where(Status.is_closed.is_(False))
         ),
     }
     recent = db.scalars(

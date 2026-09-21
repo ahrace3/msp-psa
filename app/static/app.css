@@ -212,6 +212,73 @@ fieldset legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padd
 .login-card .field { margin-bottom: 14px; }
 .login-card .btn { width: 100%; }
 
+/* Tickets */
+.ticket-number { font-family: "IBM Plex Mono", monospace; color: var(--muted); }
+
+.priority {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 1px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.priority.high { color: var(--warn); border-color: #e3c68a; background: #fdf7ec; }
+.priority.urgent { color: var(--crit); border-color: #e6c3c0; background: #fdf3f2; }
+
+.board-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.board-tab {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--ink); font-size: 13px;
+}
+.board-tab:hover { background: var(--canvas); text-decoration: none; }
+.board-tab[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.board-tab .count {
+  font-size: 11px; padding: 0 6px; border-radius: 999px;
+  background: rgba(0,0,0,0.08); color: inherit;
+}
+.board-tab[aria-current="page"] .count { background: rgba(255,255,255,0.25); }
+
+.kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+.kanban-col { flex: 0 0 260px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; }
+.kanban-col-head {
+  padding: 9px 12px; font-size: 12.5px; font-weight: 600; color: var(--muted);
+  border-bottom: 1px solid var(--border-soft); display: flex; justify-content: space-between;
+}
+.kanban-cards { padding: 8px; display: grid; gap: 8px; min-height: 40px; }
+.kanban-card {
+  border: 1px solid var(--border-soft); border-radius: 4px; padding: 8px 10px;
+  background: var(--surface); display: block; color: var(--ink);
+}
+.kanban-card:hover { border-color: var(--accent); text-decoration: none; }
+.kanban-card .num { text-align: left; color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+.kanban-card .subj { font-size: 13px; margin-bottom: 5px; }
+.kanban-card .meta { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+.kanban-empty { padding: 14px 10px; color: var(--muted); font-size: 12.5px; }
+
+/* Ticket detail */
+.ticket-head-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; font-size: 13px; color: var(--muted); }
+.two-col { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+@media (max-width: 1000px) { .two-col { grid-template-columns: 1fr; } }
+
+.note { padding: 12px 14px; border-bottom: 1px solid var(--border-soft); }
+.note:last-child { border-bottom: 0; }
+.note-head { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+.note-head .author { font-weight: 600; color: var(--ink); }
+.note-tag { font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid var(--border); }
+.note-tag.internal { color: var(--warn); border-color: #e3c68a; }
+.note-tag.resolution { color: var(--ok); border-color: #b9d6c2; }
+.note-body { white-space: pre-wrap; font-size: 13.5px; }
+
+.quick-form { padding: 14px; border-top: 1px solid var(--border-soft); display: grid; gap: 10px; }
+.quick-form textarea { min-height: 90px; }
+.quick-form .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.side-panel { display: grid; gap: 14px; }
+.side-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+
 @media (max-width: 860px) {
   .shell { flex-direction: column; }
   .rail { width: 100%; flex: none; }

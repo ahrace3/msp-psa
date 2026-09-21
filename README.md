@@ -107,9 +107,88 @@ migrations/        Alembic
 scripts/           backup and restore
 ```
 
+## Phase 1 — tickets, boards, time, email
+
+Adds on top of the Phase 0 schema, nothing removed:
+
+- **Boards & statuses** — six boards seeded by migration: Triage, MS Board,
+  Project Board, Alerts Board, Backups Board, Admin Board. Each has New →
+  In Progress → Waiting → Resolved → Closed. Editing boards/statuses through
+  the UI isn't built yet — for now, change the list at the top of
+  `migrations/versions/0002_tickets.py` and re-run migrations.
+- **Tickets** — numbered `YYNNN` (`26001`, `26002`... rolling to `27001` on
+  Jan 1). The number is claimed atomically, so two tickets created at the
+  same instant never collide.
+- **Time entries** — logged in exact minutes, no rounding.
+- **Email connector** — polls a shared mailbox (no license needed) for
+  unread mail every 60 seconds. A new sender whose email matches a contact
+  on file becomes a new ticket on the Triage board. A reply with the
+  ticket's number in the subject — `[#26001]` — threads onto that ticket
+  instead, and reopens it if it was closed. Mail from an address with no
+  matching contact is logged but does not create a ticket; add the contact
+  and it'll match on the next reply.
+
+### Deploying this update
+
+```
+git pull   # already done if you pushed from your machine
+```
+
+On the QNAP:
+
+```sh
+docker exec -it psa-web-1 alembic upgrade head
+docker restart psa-web-1 psa-worker-1
+```
+
+(The image already runs `alembic upgrade head` on boot, so a normal
+`docker compose pull && up -d` after a new build handles this automatically.
+The manual command above is only for applying the migration to already-
+running containers without repulling.)
+
+### Email connector setup (optional — the worker runs fine without it)
+
+Entra ID app registrations and application permissions are free; nothing
+here costs money. It's five steps in Azure Portal (entra.microsoft.com):
+
+1. **Create the shared mailbox**, if you haven't: Microsoft 365 admin
+   center → Teams & groups → Shared mailboxes → Add. `support@yourdomain.com`.
+   Shared mailboxes don't consume a license.
+
+2. **Register an app**: Entra ID → App registrations → New registration.
+   Name it `psa-email-connector`. Single tenant. No redirect URI needed.
+
+3. **Add the permission**: on the app, API permissions → Add a permission →
+   Microsoft Graph → **Application permissions** → search `Mail.Read` →
+   add it → **Grant admin consent**.
+
+4. **Create a client secret**: Certificates & secrets → New client secret.
+   Copy the *value* immediately — it's shown once.
+
+5. **Scope it to only this mailbox.** `Mail.Read` as an application
+   permission grants read access to every mailbox in the tenant by default.
+   Lock it down to the one shared mailbox using Exchange Online PowerShell:
+
+   ```powershell
+   Connect-ExchangeOnline
+   New-ApplicationAccessPolicy `
+     -AppId "<the app's Application (client) ID>" `
+     -PolicyScopeGroupId "support@yourdomain.com" `
+     -AccessRight RestrictAccess `
+     -Description "PSA email connector - support mailbox only"
+   ```
+
+Then fill in Container Station's environment variables (`GRAPH_TENANT_ID`,
+`GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_MAILBOX`) and restart the
+worker. Send yourself a test email and watch:
+
+```sh
+docker logs -f psa-worker-1
+```
+
 ## Roadmap
 
-- **Phase 1** — tickets, boards, statuses, time entries, inbound email via Graph
+- ~~**Phase 1** — tickets, boards, statuses, time entries, inbound email via Graph~~ done
 - **Phase 2** — NinjaRMM device sync, alert-to-ticket, self-healing auto-close
 - **Phase 3** — Microsoft 365 and Google Workspace user and license sync
 - **Phase 4** — agreements, billing run, invoice batches, CSV export

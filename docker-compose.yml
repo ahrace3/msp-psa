@@ -23,7 +23,7 @@ services:
       - -c
       - effective_cache_size=512MB
     volumes:
-      - /share/Container/psa/pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -64,7 +64,16 @@ services:
       APP_NAME: ${APP_NAME}
       BASE_URL: ${BASE_URL}
       TIMEZONE: ${TIMEZONE}
+      # Shared mailbox email connector. Leave blank and the worker simply
+      # skips the poll — nothing breaks until these are filled in.
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+      GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+      GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+      GRAPH_MAILBOX: ${GRAPH_MAILBOX:-support@yourdomain.com}
     command: python -m app.worker
     volumes:
       - /share/Container/psa/attachments:/srv/attachments
     mem_limit: 384m
+
+volumes:
+  pgdata:

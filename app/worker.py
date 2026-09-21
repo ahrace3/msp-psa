@@ -12,10 +12,14 @@ import socket
 import time
 from datetime import datetime, timezone
 
+from sqlalchemy import select
+
 from app.config import settings
 from app.db import SessionLocal
-from app.models import Job
+from app.integrations import graph
+from app.models import Company, Contact, EmailMessage, Status, Ticket, TicketNote
 from app.queue import claim_next, complete, enqueue, fail
+from app.ticketing import board_by_slug, create_ticket, default_status_for_board
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -30,6 +34,7 @@ HANDLERS: dict[str, callable] = {}
 # one after it runs, so there is no separate scheduler process.
 RECURRING: dict[str, int] = {
     "heartbeat": 300,
+    "email_poll": settings.email_poll_seconds,
 }
 
 _running = True
@@ -46,6 +51,125 @@ def handler(job_type: str):
 @handler("heartbeat")
 def _heartbeat(db, payload: dict) -> None:
     log.info("heartbeat ok at %s", datetime.now(timezone.utc).isoformat())
+
+
+@handler("email_poll")
+def _email_poll(db, payload: dict) -> None:
+    """Pull unread mail from the shared mailbox. New senders become new
+    tickets on the Triage board; a subject carrying "[#26001]" threads onto
+    that ticket instead. Every message is recorded in email_messages before
+    being marked read, so a crash mid-batch just reprocesses safely."""
+    if not (settings.graph_tenant_id and settings.graph_client_id and settings.graph_client_secret):
+        log.debug("email_poll skipped: Graph credentials not configured")
+        return
+
+    token = graph.get_access_token()
+    mailbox = settings.graph_mailbox
+    messages = graph.fetch_unread(token, mailbox)
+    if not messages:
+        return
+
+    log.info("email_poll: %d unread message(s) in %s", len(messages), mailbox)
+
+    for msg in messages:
+        graph_id = msg["id"]
+        if db.scalar(select(EmailMessage).where(EmailMessage.graph_id == graph_id)):
+            graph.mark_read(token, mailbox, graph_id)
+            continue
+
+        sender = (msg.get("from") or {}).get("emailAddress") or {}
+        from_email = (sender.get("address") or "").strip().lower()
+        from_name = sender.get("name")
+        subject = msg.get("subject") or "(no subject)"
+        body = graph.clean_body(msg)
+
+        received_raw = msg.get("receivedDateTime")
+        received_at = None
+        if received_raw:
+            try:
+                received_at = datetime.fromisoformat(received_raw.replace("Z", "+00:00"))
+            except ValueError:
+                received_at = None
+
+        record = EmailMessage(
+            graph_id=graph_id,
+            mailbox=mailbox,
+            from_email=from_email or None,
+            from_name=from_name,
+            subject=subject,
+            internet_message_id=msg.get("internetMessageId"),
+            received_at=received_at,
+        )
+
+        ticket_number = graph.extract_ticket_number(subject)
+        existing_ticket = None
+        if ticket_number:
+            existing_ticket = db.scalar(select(Ticket).where(Ticket.number == ticket_number))
+
+        try:
+            if existing_ticket:
+                db.add(
+                    TicketNote(
+                        ticket_id=existing_ticket.id,
+                        note_type="discussion",
+                        body=body,
+                        is_inbound_email=True,
+                    )
+                )
+                # A reply on a closed ticket means the issue isn't actually
+                # resolved — reopen it rather than silently losing the note.
+                if existing_ticket.status.is_closed:
+                    reopened = default_status_for_board(db, existing_ticket.board_id)
+                    if reopened:
+                        existing_ticket.status_id = reopened.id
+                        existing_ticket.closed_at = None
+                record.ticket_id = existing_ticket.id
+                record.outcome = "matched"
+            else:
+                contact = None
+                company = None
+                if from_email:
+                    contact = db.scalar(
+                        select(Contact).where(Contact.email.ilike(from_email))
+                    )
+                    if contact:
+                        company = contact.company
+
+                if not company:
+                    record.outcome = "no_contact_match"
+                    record.error = f"No contact on file for {from_email or 'unknown sender'}"
+                else:
+                    board = board_by_slug(db, settings.default_ticket_board_slug)
+                    if not board:
+                        record.outcome = "error"
+                        record.error = (
+                            f"Default board '{settings.default_ticket_board_slug}' not found"
+                        )
+                    else:
+                        ticket = create_ticket(
+                            db,
+                            company_id=company.id,
+                            contact_id=contact.id,
+                            board_id=board.id,
+                            subject=subject,
+                            source="email",
+                            initial_note=body,
+                            initial_note_is_email=True,
+                        )
+                        record.ticket_id = ticket.id
+                        record.outcome = "created_ticket"
+
+            db.add(record)
+            db.commit()
+        except Exception as exc:  # noqa: BLE001 - one bad message shouldn't stop the batch
+            db.rollback()
+            record.outcome = "error"
+            record.error = repr(exc)[:2000]
+            db.add(record)
+            db.commit()
+            log.exception("email_poll: failed on message %s", graph_id)
+
+        graph.mark_read(token, mailbox, graph_id)
 
 
 def _stop(signum, frame):

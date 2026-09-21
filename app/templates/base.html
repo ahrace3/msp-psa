@@ -16,6 +16,8 @@
     <div class="rail-brand">{{ app_name }}</div>
     <nav>
       <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="/tickets" {% if active == 'tickets' %}aria-current="page"{% endif %}>Tickets</a>
+      <a href="/boards" {% if active == 'boards' %}aria-current="page"{% endif %}>Boards</a>
       <a href="/companies" {% if active == 'companies' %}aria-current="page"{% endif %}>Companies</a>
       <a href="/contacts" {% if active == 'contacts' %}aria-current="page"{% endif %}>Contacts</a>
       <a href="/configurations" {% if active == 'configurations' %}aria-current="page"{% endif %}>Configurations</a>

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% set active = 'boards' %}
+{% block title %}{{ board.name }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ board.name }}</h1>
+  <a class="btn" href="/tickets/new?board_id={{ board.id }}">New ticket</a>
+</div>
+
+<div class="board-tabs">
+  {% for b, count in boards %}
+  <a class="board-tab" href="/boards/{{ b.slug }}" {% if b.id == board.id %}aria-current="page"{% endif %}>
+    {{ b.name }} <span class="count">{{ count }}</span>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="kanban">
+  {% for status in board.statuses %}
+  {% if not status.is_closed or show_closed %}
+  <div class="kanban-col">
+    <div class="kanban-col-head">{{ status.name }} <span>{{ columns.get(status.id, []) | length }}</span></div>
+    <div class="kanban-cards">
+      {% for t in columns.get(status.id, []) %}
+      <a class="kanban-card" href="/tickets/{{ t.id }}">
+        <div class="num">#{{ t.number }}</div>
+        <div class="subj">{{ t.subject }}</div>
+        <div class="meta">
+          <span>{{ t.company.name }}</span>
+          <span class="priority {{ t.priority }}">{{ t.priority }}</span>
+        </div>
+      </a>
+      {% else %}
+      <div class="kanban-empty">Nothing here.</div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+{% if not show_closed %}
+<p class="sub" style="margin-top:14px"><a href="/boards/{{ board.slug }}?show_closed=true">Show closed tickets</a></p>
+{% else %}
+<p class="sub" style="margin-top:14px"><a href="/boards/{{ board.slug }}">Hide closed tickets</a></p>
+{% endif %}
+{% endblock %}

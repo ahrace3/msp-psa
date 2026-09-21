@@ -14,5 +14,16 @@ class Settings(BaseSettings):
     worker_poll_seconds: int = 5
     worker_max_attempts: int = 5
 
+    # Microsoft Graph — shared mailbox email connector. Leave blank until
+    # the app registration exists; the poll job skips itself when they're
+    # empty rather than erroring the worker.
+    graph_tenant_id: str = ""
+    graph_client_id: str = ""
+    graph_client_secret: str = ""
+    graph_mailbox: str = "support@adamhiltonracing.com"
+    email_poll_seconds: int = 60
+
+    default_ticket_board_slug: str = "triage"
+
 
 settings = Settings()
