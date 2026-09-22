@@ -20,24 +20,7 @@
   --rail-w: 212px;
 }
 
-/* Light mode only when the user explicitly picks it in the OS */
-@media (prefers-color-scheme: light) {
-  :root {
-    --rail: #10171d;
-    --rail-text: #9fb0bd;
-    --rail-text-strong: #f2f6f9;
-    --canvas: #f0f2f5;
-    --surface: #ffffff;
-    --border: #c9d2da;
-    --border-soft: #e2e8ed;
-    --ink: #172029;
-    --muted: #5a6875;
-    --accent: #0c5b6b;
-    --accent-hover: #094653;
-    --ok: #2c6b45;
-    --warn: #8a5a07;
-    --crit: #9b2c2c;
-  }
+
 }
 
 * { box-sizing: border-box; }
@@ -315,3 +298,4 @@ fieldset legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padd
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
