@@ -49,60 +49,18 @@ def _company_picker_or_target(db: Session, request: Request, user: User, company
     return company, None
 
 
-# ------------------------------------------------------------ documentation
-
-@router.get("/documentation", response_class=HTMLResponse)
-def documentation_index(
-    request: Request,
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    counts = {
-        "credentials": db.scalar(select(func.count(Credential.id))) or 0,
-        "documents": db.scalar(select(func.count(Document.id))) or 0,
-        "locations": db.scalar(select(func.count(Location.id))) or 0,
-        "domains": db.scalar(select(func.count(Domain.id))) or 0,
-        "ssl_certificates": db.scalar(select(func.count(SSLCertificate.id))) or 0,
-    }
-    return templates.TemplateResponse(
-        request, "documentation/index.html", {"user": user, "counts": counts}
-    )
-
-
 # -------------------------------------------------------------- locations --
-
-@router.get("/locations", response_class=HTMLResponse)
-def list_locations(
-    request: Request,
-    q: str = "",
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    stmt = select(Location, Company).join(Company, Location.company_id == Company.id)
-    if q:
-        term = f"%{q.lower()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(Location.name).like(term),
-                func.lower(Location.city).like(term),
-                func.lower(Company.name).like(term),
-            )
-        )
-    rows = db.execute(stmt.order_by(Company.name, Location.name)).all()
-    template = "locations/_rows.html" if request.headers.get("HX-Request") else "locations/list.html"
-    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
-
 
 @router.get("/locations/new", response_class=HTMLResponse)
 def new_location(
     request: Request,
-    company_id: int | None = None,
+    company_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company, resp = _company_picker_or_target(db, request, user, company_id, "/locations/new", "Add location")
-    if resp:
-        return resp
+    company = db.get(Company, company_id)
+    if not company:
+        return RedirectResponse("/companies", status_code=303)
     return templates.TemplateResponse(
         request, "locations/form.html",
         {"user": user, "company": company, "location": None},
@@ -173,41 +131,16 @@ async def update_location(
 
 # --------------------------------------------------------------- documents --
 
-@router.get("/documents", response_class=HTMLResponse)
-def list_documents(
-    request: Request,
-    q: str = "",
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    stmt = select(Document, Company).join(Company, Document.company_id == Company.id)
-    if q:
-        term = f"%{q.lower()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(Document.title).like(term),
-                func.lower(Document.category).like(term),
-                func.lower(Company.name).like(term),
-            )
-        )
-    rows = db.execute(
-        stmt.order_by(Document.is_pinned.desc(), Document.updated_at.desc())
-    ).all()
-
-    template = "documents/_rows.html" if request.headers.get("HX-Request") else "documents/list.html"
-    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
-
-
 @router.get("/documents/new", response_class=HTMLResponse)
 def new_document(
     request: Request,
-    company_id: int | None = None,
+    company_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company, resp = _company_picker_or_target(db, request, user, company_id, "/documents/new", "Add document")
-    if resp:
-        return resp
+    company = db.get(Company, company_id)
+    if not company:
+        return RedirectResponse("/companies", status_code=303)
     return templates.TemplateResponse(
         request, "documents/form.html",
         {"user": user, "company": company, "document": None, "categories": DOCUMENT_CATEGORIES},
@@ -292,41 +225,17 @@ async def update_document(
 
 # ------------------------------------------------------------- credentials --
 
-@router.get("/credentials", response_class=HTMLResponse)
-def list_credentials(
-    request: Request,
-    q: str = "",
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    stmt = select(Credential, Company).join(Company, Credential.company_id == Company.id)
-    if q:
-        term = f"%{q.lower()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(Credential.name).like(term),
-                func.lower(Credential.username).like(term),
-                func.lower(Credential.category).like(term),
-                func.lower(Company.name).like(term),
-            )
-        )
-    rows = db.execute(stmt.order_by(Company.name, Credential.name)).all()
-
-    template = "credentials/_rows.html" if request.headers.get("HX-Request") else "credentials/list.html"
-    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
-
-
 @router.get("/credentials/new", response_class=HTMLResponse)
 def new_credential(
     request: Request,
-    company_id: int | None = None,
+    company_id: int,
     error: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company, resp = _company_picker_or_target(db, request, user, company_id, "/credentials/new", "Add credential")
-    if resp:
-        return resp
+    company = db.get(Company, company_id)
+    if not company:
+        return RedirectResponse("/companies", status_code=303)
     locations = db.scalars(select(Location).where(Location.company_id == company.id)).all()
     configs = db.scalars(select(Configuration).where(Configuration.company_id == company.id)).all()
     contacts = db.scalars(select(Contact).where(Contact.company_id == company.id)).all()
@@ -506,38 +415,16 @@ def _apply_whois(domain: Domain, result: dict, overwrite: bool) -> None:
     domain.last_whois_check_at = datetime.now(timezone.utc)
 
 
-@router.get("/domains", response_class=HTMLResponse)
-def list_domains(
-    request: Request,
-    q: str = "",
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    stmt = select(Domain, Company).join(Company, Domain.company_id == Company.id)
-    if q:
-        term = f"%{q.lower()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(Domain.domain_name).like(term),
-                func.lower(Domain.registrar).like(term),
-                func.lower(Company.name).like(term),
-            )
-        )
-    rows = db.execute(stmt.order_by(Company.name, Domain.domain_name)).all()
-    template = "domains/_rows.html" if request.headers.get("HX-Request") else "domains/list.html"
-    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
-
-
 @router.get("/domains/new", response_class=HTMLResponse)
 def new_domain(
     request: Request,
-    company_id: int | None = None,
+    company_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company, resp = _company_picker_or_target(db, request, user, company_id, "/domains/new", "Add domain")
-    if resp:
-        return resp
+    company = db.get(Company, company_id)
+    if not company:
+        return RedirectResponse("/companies", status_code=303)
     return templates.TemplateResponse(
         request, "domains/form.html", {"user": user, "company": company, "domain": None, "error": None}
     )
@@ -655,38 +542,16 @@ def _apply_ssl(cert: SSLCertificate, result: dict, overwrite: bool) -> None:
     cert.last_checked_at = datetime.now(timezone.utc)
 
 
-@router.get("/ssl-certificates", response_class=HTMLResponse)
-def list_ssl_certificates(
-    request: Request,
-    q: str = "",
-    db: Session = Depends(get_db),
-    user: User = Depends(current_user),
-):
-    stmt = select(SSLCertificate, Company).join(Company, SSLCertificate.company_id == Company.id)
-    if q:
-        term = f"%{q.lower()}%"
-        stmt = stmt.where(
-            or_(
-                func.lower(SSLCertificate.common_name).like(term),
-                func.lower(SSLCertificate.issued_by).like(term),
-                func.lower(Company.name).like(term),
-            )
-        )
-    rows = db.execute(stmt.order_by(Company.name, SSLCertificate.common_name)).all()
-    template = "ssl_certificates/_rows.html" if request.headers.get("HX-Request") else "ssl_certificates/list.html"
-    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
-
-
 @router.get("/ssl-certificates/new", response_class=HTMLResponse)
 def new_ssl_certificate(
     request: Request,
-    company_id: int | None = None,
+    company_id: int,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company, resp = _company_picker_or_target(db, request, user, company_id, "/ssl-certificates/new", "Add SSL certificate")
-    if resp:
-        return resp
+    company = db.get(Company, company_id)
+    if not company:
+        return RedirectResponse("/companies", status_code=303)
     return templates.TemplateResponse(
         request, "ssl_certificates/form.html", {"user": user, "company": company, "cert": None, "error": None}
     )

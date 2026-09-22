@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ company.name }} — Export</title>
+<style>
+/* PDF export stylesheet — clean, print-ready, no external fonts */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 10pt;
+  color: #111;
+  background: #fff;
+  padding: 0;
+}
+
+/* Cover page */
+.cover {
+  page-break-after: always;
+  padding: 60px 48px;
+}
+.cover h1 { font-size: 28pt; font-weight: 700; margin-bottom: 8px; }
+.cover .subtitle { font-size: 11pt; color: #555; margin-bottom: 4px; }
+.cover .meta { font-size: 9pt; color: #888; margin-top: 32px; border-top: 1px solid #ddd; padding-top: 12px; }
+
+/* Section headings */
+h2 {
+  font-size: 13pt;
+  font-weight: 700;
+  margin: 24px 0 10px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid #111;
+}
+h3 {
+  font-size: 10pt;
+  font-weight: 700;
+  margin: 16px 0 6px;
+  color: #333;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-size: 9pt;
+}
+th {
+  text-align: left;
+  background: #f0f0f0;
+  padding: 5px 8px;
+  font-weight: 700;
+  border: 1px solid #ccc;
+}
+td {
+  padding: 5px 8px;
+  border: 1px solid #ddd;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #fafafa; }
+
+/* Key-value pairs */
+.kv { display: flex; gap: 8px; margin-bottom: 4px; font-size: 9pt; }
+.kv .k { font-weight: 600; min-width: 140px; color: #444; }
+
+/* Document body */
+.doc-body {
+  white-space: pre-wrap;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 8.5pt;
+  background: #f8f8f8;
+  border: 1px solid #ddd;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 2px;
+}
+
+/* Credentials */
+.credential-block {
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.credential-block h3 { margin: 0 0 6px; }
+.password-hidden { color: #aaa; font-style: italic; }
+.password-shown { font-family: "Courier New", Courier, monospace; font-size: 9pt; }
+
+/* Sections with page-break hints */
+.section { page-break-inside: avoid; }
+.doc-section { margin-bottom: 20px; }
+
+/* Footer on every page */
+@page {
+  margin: 20mm 18mm;
+  @bottom-center {
+    content: "{{ company.name }} — Confidential — " counter(page) " of " counter(pages);
+    font-size: 8pt;
+    color: #888;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<div class="cover">
+  <h1>{{ company.name }}</h1>
+  <div class="subtitle">{{ company.identifier }} · {{ company.status }}</div>
+  {% if company.city %}<div class="subtitle">{{ company.city }}{% if company.state %}, {{ company.state }}{% endif %}</div>{% endif %}
+  {% if company.phone %}<div class="subtitle">{{ company.phone }}</div>{% endif %}
+  {% if company.website %}<div class="subtitle">{{ company.website }}</div>{% endif %}
+  <div class="meta">
+    Exported {{ export_date }}<br>
+    Passwords: {{ "SHOWN — handle with care" if show_passwords else "HIDDEN" }}<br>
+    This document is confidential. Do not distribute.
+  </div>
+</div>
+
+<!-- Contacts -->
+{% if contacts %}
+<div class="section">
+<h2>Contacts</h2>
+<table>
+  <thead><tr><th>Name</th><th>Title</th><th>Email</th><th>Phone</th><th>Licensed</th></tr></thead>
+  <tbody>
+    {% for c in contacts %}
+    <tr>
+      <td>{{ c.display_name }}{% if c.is_primary %} ★{% endif %}</td>
+      <td>{{ c.title or "—" }}</td>
+      <td>{{ c.email or "—" }}</td>
+      <td>{{ c.phone or "—" }}</td>
+      <td>{{ "Yes" if c.is_licensed else "No" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<!-- Configurations -->
+{% if configurations %}
+<div class="section">
+<h2>Configurations</h2>
+<table>
+  <thead><tr><th>Name</th><th>Type</th><th>OS</th><th>Serial</th><th>Warranty expires</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for cfg in configurations %}
+    <tr>
+      <td>{{ cfg.name }}</td>
+      <td>{{ cfg.config_type }}</td>
+      <td>{{ cfg.operating_system or "—" }}</td>
+      <td>{{ cfg.serial_number or "—" }}</td>
+      <td>{{ cfg.warranty_expires_on.strftime("%b %-d, %Y") if cfg.warranty_expires_on else "—" }}</td>
+      <td>{{ cfg.status }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<!-- Locations -->
+{% if locations %}
+<div class="section">
+<h2>Locations</h2>
+{% for loc in locations %}
+<div class="kv"><span class="k">{{ loc.name }}{% if loc.is_primary %} (primary){% endif %}</span></div>
+{% if loc.address_line1 %}<div class="kv"><span class="k">Address</span><span>{{ loc.address_line1 }}{% if loc.address_line2 %}, {{ loc.address_line2 }}{% endif %}{% if loc.city %}, {{ loc.city }}{% endif %}{% if loc.state %}, {{ loc.state }}{% endif %}{% if loc.postal_code %} {{ loc.postal_code }}{% endif %}</span></div>{% endif %}
+{% if loc.phone %}<div class="kv"><span class="k">Phone</span><span>{{ loc.phone }}</span></div>{% endif %}
+{% if loc.notes %}<div class="kv"><span class="k">Notes</span><span>{{ loc.notes }}</span></div>{% endif %}
+{% endfor %}
+</div>
+{% endif %}
+
+<!-- Credentials -->
+{% if credentials %}
+<div class="section">
+<h2>Passwords &amp; Credentials</h2>
+{% for cred, secret in credentials %}
+<div class="credential-block section">
+  <h3>{{ cred.name }}{% if cred.category %} <span style="font-weight:400;color:#666">({{ cred.category }})</span>{% endif %}</h3>
+  {% if cred.username %}<div class="kv"><span class="k">Username</span><span>{{ cred.username }}</span></div>{% endif %}
+  <div class="kv">
+    <span class="k">Password</span>
+    {% if show_passwords %}
+    <span class="password-shown">{{ secret }}</span>
+    {% else %}
+    <span class="password-hidden">— hidden —</span>
+    {% endif %}
+  </div>
+  {% if cred.url %}<div class="kv"><span class="k">URL</span><span>{{ cred.url }}</span></div>{% endif %}
+  {% if cred.notes %}<div class="kv"><span class="k">Notes</span><span>{{ cred.notes }}</span></div>{% endif %}
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<!-- Documents -->
+{% if documents %}
+<h2>Documents</h2>
+{% for doc in documents %}
+<div class="doc-section section">
+  <h3>{{ doc.title }}{% if doc.category %} — {{ doc.category }}{% endif %}</h3>
+  <div class="doc-body">{{ doc.body }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+<!-- Domains -->
+{% if domains %}
+<div class="section">
+<h2>Domains</h2>
+<table>
+  <thead><tr><th>Domain</th><th>Registrar</th><th>DNS</th><th>Expires</th><th>Auto-renew</th></tr></thead>
+  <tbody>
+    {% for d in domains %}
+    <tr>
+      <td>{{ d.domain_name }}</td>
+      <td>{{ d.registrar or "—" }}</td>
+      <td>{{ d.dns_provider or "—" }}</td>
+      <td>{{ d.expires_on.strftime("%b %-d, %Y") if d.expires_on else "—" }}</td>
+      <td>{{ "Yes" if d.auto_renew else "No" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<!-- SSL Certificates -->
+{% if ssl_certificates %}
+<div class="section">
+<h2>SSL Certificates</h2>
+<table>
+  <thead><tr><th>Common name</th><th>Issued by</th><th>Installed on</th><th>Expires</th></tr></thead>
+  <tbody>
+    {% for cert in ssl_certificates %}
+    <tr>
+      <td>{{ cert.common_name }}</td>
+      <td>{{ cert.issued_by or "—" }}</td>
+      <td>{{ cert.installed_location or "—" }}</td>
+      <td>{{ cert.expires_on.strftime("%b %-d, %Y") if cert.expires_on else "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+{% if company.notes %}
+<div class="section">
+<h2>Notes</h2>
+<div class="doc-body">{{ company.notes }}</div>
+</div>
+{% endif %}
+
+</body>
+</html>

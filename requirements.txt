@@ -12,3 +12,4 @@ httpx==0.28.1
 cryptography==43.0.3
 MarkupSafe==2.1.5
 python-whois==0.9.6
+weasyprint==60.2

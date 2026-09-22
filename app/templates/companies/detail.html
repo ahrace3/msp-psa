@@ -11,7 +11,11 @@
       {% if company.city %} · {{ company.city }}{% if company.state %}, {{ company.state }}{% endif %}{% endif %}
     </div>
   </div>
-  <a class="btn secondary" href="/companies/{{ company.id }}/edit">Edit company</a>
+  <div style="display:flex;gap:8px">
+    <a class="btn secondary" href="/companies/{{ company.id }}/export">Export PDF</a>
+    <a class="btn secondary" href="/companies/{{ company.id }}/export?show_passwords=true">Export PDF (with passwords)</a>
+    <a class="btn secondary" href="/companies/{{ company.id }}/edit">Edit company</a>
+  </div>
 </div>
 
 <div class="stats">

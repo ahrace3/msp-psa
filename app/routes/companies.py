@@ -175,3 +175,77 @@ async def update_company(
     company.status = values["status"] or "active"
     db.commit()
     return RedirectResponse(f"/companies/{company.id}", status_code=303)
+
+
+@router.get("/{company_id}/export")
+def export_company(
+    company_id: int,
+    request: Request,
+    show_passwords: bool = False,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    from datetime import date
+    from fastapi.responses import Response
+    from jinja2 import Environment, FileSystemLoader
+    import markupsafe, json
+
+    company = db.get(Company, company_id)
+    if not company:
+        return RedirectResponse("/companies", status_code=303)
+
+    contacts = db.scalars(
+        select(Contact).where(Contact.company_id == company_id).order_by(Contact.is_primary.desc(), Contact.last_name)
+    ).all()
+    configurations = db.scalars(
+        select(Configuration).where(Configuration.company_id == company_id).order_by(Configuration.name)
+    ).all()
+
+    from app.models import Location, Document, Credential, Domain, SSLCertificate
+    from app import crypto
+
+    locations = db.scalars(select(Location).where(Location.company_id == company_id)).all()
+    documents = db.scalars(select(Document).where(Document.company_id == company_id).order_by(Document.is_pinned.desc())).all()
+    creds_raw = db.scalars(select(Credential).where(Credential.company_id == company_id).order_by(Credential.name)).all()
+    domains = db.scalars(select(Domain).where(Domain.company_id == company_id)).all()
+    ssl_certificates = db.scalars(select(SSLCertificate).where(SSLCertificate.company_id == company_id)).all()
+
+    # Decrypt credentials only when show_passwords is requested
+    credentials = []
+    for cred in creds_raw:
+        if show_passwords:
+            try:
+                secret = crypto.decrypt_secret(cred.secret_encrypted)
+            except Exception:
+                secret = "[could not decrypt]"
+        else:
+            secret = None
+        credentials.append((cred, secret))
+
+    env = Environment(loader=FileSystemLoader("app/templates"), autoescape=True)
+    html = env.get_template("companies/export.html").render(
+        company=company,
+        contacts=contacts,
+        configurations=configurations,
+        locations=locations,
+        documents=documents,
+        credentials=credentials,
+        domains=domains,
+        ssl_certificates=ssl_certificates,
+        show_passwords=show_passwords,
+        export_date=date.today().strftime("%B %-d, %Y"),
+    )
+
+    try:
+        import weasyprint
+        pdf = weasyprint.HTML(string=html).write_pdf()
+        filename = f"{company.identifier}-export.pdf"
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        # Fallback: return the HTML so the issue is visible
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html + f"<pre>PDF error: {exc}</pre>")
