@@ -186,6 +186,107 @@ worker. Send yourself a test email and watch:
 docker logs -f psa-worker-1
 ```
 
+## Phase Doc-1 — documentation layer
+
+Layered onto Companies, same as everything else:
+
+- **Locations** — physical sites per client, address and phone.
+- **Documents** — free-form text pages per company. Titles, an optional
+  category (autocomplete, not enforced), pin-to-top for the stuff a tech
+  needs first. No markdown rendering yet — plain text, whitespace preserved.
+- **Credentials** — the password vault. Every secret is encrypted at rest
+  with a Fernet key that lives only in the environment, never in the
+  database or git. A credential can be linked to a Location, Configuration,
+  or Contact so it shows up next to the thing it unlocks. Passwords are
+  masked everywhere by default; clicking **Show** makes one request that
+  decrypts and displays that one value — the decrypted password is never
+  present in a normal page load.
+
+**You must set `CREDENTIAL_ENCRYPTION_KEY` before using Credentials.**
+Generate one and add it to Container Station's environment variables for
+the `web` service:
+
+```powershell
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Back this key up somewhere separate from your database backups — a
+password manager, not the same Azure Blob container. If you lose it, every
+stored credential is unrecoverable garbage; the database itself never held
+the plaintext.
+
+### Deploying this update
+
+Same pattern as Phase 1:
+
+```sh
+docker pull ghcr.io/ahrace3/msp-psa:latest
+```
+
+Recreate the `psa` application in Container Station, adding
+`CREDENTIAL_ENCRYPTION_KEY` to the environment variables first — migrations
+run automatically on boot and create the three new tables.
+
+## Phase 1.1 — workflow refinements
+
+Adjustments made before anything above Phase 0 was ever deployed, so these
+edit the Phase 1 / Doc-1 migrations and models directly rather than bolting
+on more:
+
+- **Note flags, not a note type.** A ticket note is Discussion, Internal, and
+  Resolution as three independent checkboxes (Discussion checked by
+  default), not a single exclusive choice — matching how ConnectWise notes
+  actually work. A note can be both Internal and Resolution at once.
+  Internal notes carry an `is_internal` flag that's the source of truth for
+  keeping them out of any future client-facing view (portal, outbound
+  email) — nothing reads that flag yet since neither exists, but the data
+  is there when they do.
+- **Note search.** The ticket search box (`/tickets`) now also matches text
+  inside ticket notes, not just the subject/number/company. Finding "that
+  printer's IP we wrote down somewhere" is a text search away.
+- **Time entry timer.** The time entry form on a ticket has Start/Stop
+  buttons that fill the Hours field automatically from elapsed wall-clock
+  time. Purely client-side — nothing is persisted until you click Log time,
+  so a forgotten tab doesn't silently bill four hours.
+- **Type / Subtype / Item.** Tickets can optionally be categorized on a
+  three-level tree (Hardware → Desktop/Laptop → Won't Power On, etc.),
+  seeded with an ITIL-flavored default set oriented at day-to-day PC/MSP
+  support work. Cascading selects on both the New Ticket form and the
+  ticket detail side panel. The full seed list is in
+  `migrations/versions/0002_tickets.py` (`CATEGORIES` dict) — edit it and
+  re-run migrations to change the taxonomy; no admin UI for it yet.
+- **Domain & SSL Certificate trackers.** Two of IT Glue's built-in flexible
+  asset types, implemented as real structured data (not free-text
+  Documents) specifically because their expiration dates need to be
+  queryable — that's what feeds the Reports page below. Both live as panels
+  on the Company page, same pattern as Locations/Documents/Credentials.
+- **Reports page.** New top-level nav item. Open tickets by board, tickets
+  opened/closed in the last 7/30 days, time logged this week by tech
+  (total vs. billable), unbilled billable hours by company, and everything
+  — domains, SSL certs, device warranties — expiring within 60 days.
+  Nothing here is stored; every number is computed live.
+- **Contacts and Configurations moved under Companies.** Removed from the
+  top nav. They're unchanged otherwise — same routes, same forms, same
+  data — but the only way to reach them now is through a company's page,
+  same as Locations, Documents, and Credentials. If you want the old
+  standalone search-across-everyone list back (useful for "which company
+  has serial number X"), say so and it's a small change.
+
+### Deploying this update
+
+Same as always — nothing above Phase 0 has touched your live database yet,
+so this is a clean `alembic upgrade head` with no migration-compatibility
+concerns:
+
+```sh
+docker pull ghcr.io/ahrace3/msp-psa:latest
+```
+
+Recreate the `psa` application in Container Station. Migrations run
+automatically on boot and create the new tables (`ticket_types`,
+`ticket_subtypes`, `ticket_items`, `domains`, `ssl_certificates`) and the
+new `ticket_notes` columns.
+
 ## Roadmap
 
 - ~~**Phase 1** — tickets, boards, statuses, time entries, inbound email via Graph~~ done

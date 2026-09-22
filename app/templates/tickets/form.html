@@ -52,6 +52,24 @@
           {% endfor %}
         </select>
       </div>
+
+      <fieldset><legend>Categorization (optional)</legend></fieldset>
+      <div class="field">
+        <label for="type_id">Type</label>
+        <select id="type_id" name="type_id">
+          <option value="">None</option>
+          {% for t in types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="subtype_id">Subtype</label>
+        <select id="subtype_id" name="subtype_id"><option value="">Select a type first</option></select>
+      </div>
+      <div class="field">
+        <label for="item_id">Item</label>
+        <select id="item_id" name="item_id"><option value="">Select a subtype first</option></select>
+      </div>
+
       <div class="field full">
         <label for="subject">Subject</label>
         <input id="subject" name="subject" type="text" required maxlength="255">
@@ -67,4 +85,9 @@
     </div>
   </div>
 </form>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  initCategorySelects({{ types | tojson }}, "type_id", "subtype_id", "item_id", null, null, null);
+});
+</script>
 {% endblock %}

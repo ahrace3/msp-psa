@@ -1,11 +1,11 @@
-"""Phase 1: boards, statuses, tickets, notes, time entries, email connector
+"""Phase 1: boards, statuses, tickets, notes, time entries, email connector,
+ITIL-style type/subtype/item categorization
 
 Revision ID: 0002
 Revises: 0001
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = "0002"
 down_revision = "0001"
@@ -32,6 +32,53 @@ STATUSES = [
     ("Resolved", False),
     ("Closed", True),
 ]
+
+# Type -> Subtype -> [Items]. An ITIL-flavored incident classification tree,
+# oriented at day-to-day MSP/PC support work. Change this list and re-run
+# migrations to adjust it; there's no admin UI for it yet.
+CATEGORIES: dict[str, dict[str, list[str]]] = {
+    "Hardware": {
+        "Desktop / Laptop": [
+            "Won't Power On", "Blue Screen / Crash", "Slow Performance",
+            "Peripheral Not Working", "Physical Damage",
+        ],
+        "Printer": ["Not Printing", "Paper Jam", "Driver / Install Issue"],
+        "Network Equipment": [
+            "Switch / Router Down", "Cabling Issue", "Wi-Fi Access Point Issue",
+        ],
+        "Server": ["Down / Unresponsive", "Disk / Storage Issue", "Performance Issue"],
+    },
+    "Software": {
+        "Operating System": [
+            "Won't Boot", "Update Failure", "Blue Screen / Crash", "Performance Issue",
+        ],
+        "Application": ["Crash / Not Responding", "License Issue", "Install / Update Request"],
+        "Malware / Security": ["Suspected Infection", "Suspicious Activity", "Phishing Report"],
+    },
+    "Account & Access": {
+        "User Account": [
+            "New Account Request", "Password Reset", "Account Locked Out", "Termination / Disable",
+        ],
+        "Permissions": ["Access Request", "Access Removal", "Group Membership Change"],
+    },
+    "Email & Collaboration": {
+        "Mailbox": ["Not Sending", "Not Receiving", "Mailbox Full", "Spam / Phishing"],
+        "Collaboration Tools": ["Teams / Zoom Issue", "Shared Drive Access", "Calendar Issue"],
+    },
+    "Network & Connectivity": {
+        "Internet / WAN": ["No Internet", "Intermittent Connection"],
+        "Wi-Fi": ["Can't Connect", "Weak Signal"],
+        "VPN": ["Can't Connect", "Slow / Dropping"],
+    },
+    "Service Request": {
+        "New Equipment": ["New PC", "New Peripheral", "New Phone"],
+        "Move / Add / Change": ["Office Move", "Configuration Change", "Onboarding", "Offboarding"],
+    },
+    "Backup & Disaster Recovery": {
+        "Backup Job": ["Backup Failure", "Restore Request"],
+        "Disaster Recovery": ["DR Test", "DR Event"],
+    },
+}
 
 
 def upgrade() -> None:
@@ -67,6 +114,39 @@ def upgrade() -> None:
     )
 
     op.create_table(
+        "ticket_types",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column("name", sa.String(80), nullable=False, unique=True),
+        sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),
+    )
+
+    op.create_table(
+        "ticket_subtypes",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "type_id", sa.Integer,
+            sa.ForeignKey("ticket_types.id", ondelete="CASCADE"), nullable=False,
+        ),
+        sa.Column("name", sa.String(80), nullable=False),
+        sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),
+        sa.UniqueConstraint("type_id", "name", name="uq_subtype_type_name"),
+    )
+    op.create_index("ix_ticket_subtypes_type_id", "ticket_subtypes", ["type_id"])
+
+    op.create_table(
+        "ticket_items",
+        sa.Column("id", sa.Integer, primary_key=True),
+        sa.Column(
+            "subtype_id", sa.Integer,
+            sa.ForeignKey("ticket_subtypes.id", ondelete="CASCADE"), nullable=False,
+        ),
+        sa.Column("name", sa.String(80), nullable=False),
+        sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),
+        sa.UniqueConstraint("subtype_id", "name", name="uq_item_subtype_name"),
+    )
+    op.create_index("ix_ticket_items_subtype_id", "ticket_items", ["subtype_id"])
+
+    op.create_table(
         "tickets",
         sa.Column("id", sa.Integer, primary_key=True),
         sa.Column("number", sa.String(12), nullable=False, unique=True),
@@ -94,6 +174,18 @@ def upgrade() -> None:
             "assigned_user_id", sa.Integer,
             sa.ForeignKey("users.id", ondelete="SET NULL"),
         ),
+        sa.Column(
+            "type_id", sa.Integer,
+            sa.ForeignKey("ticket_types.id", ondelete="SET NULL"),
+        ),
+        sa.Column(
+            "subtype_id", sa.Integer,
+            sa.ForeignKey("ticket_subtypes.id", ondelete="SET NULL"),
+        ),
+        sa.Column(
+            "item_id", sa.Integer,
+            sa.ForeignKey("ticket_items.id", ondelete="SET NULL"),
+        ),
         sa.Column("subject", sa.String(255), nullable=False),
         sa.Column("priority", sa.String(16), nullable=False, server_default="normal"),
         sa.Column("source", sa.String(16), nullable=False, server_default="manual"),
@@ -109,6 +201,9 @@ def upgrade() -> None:
     op.create_index("ix_tickets_board_id", "tickets", ["board_id"])
     op.create_index("ix_tickets_status_id", "tickets", ["status_id"])
     op.create_index("ix_tickets_assigned_user_id", "tickets", ["assigned_user_id"])
+    op.create_index("ix_tickets_type_id", "tickets", ["type_id"])
+    op.create_index("ix_tickets_subtype_id", "tickets", ["subtype_id"])
+    op.create_index("ix_tickets_item_id", "tickets", ["item_id"])
     op.create_index("ix_tickets_rmm_alert_uid", "tickets", ["rmm_alert_uid"])
     op.create_index("ix_tickets_email_thread_token", "tickets", ["email_thread_token"])
 
@@ -123,7 +218,9 @@ def upgrade() -> None:
             "user_id", sa.Integer,
             sa.ForeignKey("users.id", ondelete="SET NULL"),
         ),
-        sa.Column("note_type", sa.String(16), nullable=False, server_default="discussion"),
+        sa.Column("is_discussion", sa.Boolean, nullable=False, server_default=sa.true()),
+        sa.Column("is_internal", sa.Boolean, nullable=False, server_default=sa.false()),
+        sa.Column("is_resolution", sa.Boolean, nullable=False, server_default=sa.false()),
         sa.Column("body", sa.Text, nullable=False),
         sa.Column("is_inbound_email", sa.Boolean, nullable=False, server_default=sa.false()),
         sa.Column("created_at", TS, nullable=False, server_default=sa.func.now()),
@@ -175,6 +272,8 @@ def upgrade() -> None:
     op.create_index("ix_email_messages_in_reply_to", "email_messages", ["in_reply_to"])
     op.create_index("ix_email_messages_ticket_id", "email_messages", ["ticket_id"])
 
+    conn = op.get_bind()
+
     # --- seed boards + statuses ---
     boards_t = sa.table(
         "boards", sa.column("id", sa.Integer), sa.column("name", sa.String),
@@ -184,8 +283,6 @@ def upgrade() -> None:
         "statuses", sa.column("board_id", sa.Integer), sa.column("name", sa.String),
         sa.column("sort_order", sa.Integer), sa.column("is_closed", sa.Boolean),
     )
-
-    conn = op.get_bind()
     for order, (name, slug) in enumerate(BOARDS):
         board_id = conn.execute(
             boards_t.insert()
@@ -199,12 +296,45 @@ def upgrade() -> None:
                 )
             )
 
+    # --- seed ticket type/subtype/item tree ---
+    types_t = sa.table(
+        "ticket_types", sa.column("id", sa.Integer),
+        sa.column("name", sa.String), sa.column("sort_order", sa.Integer),
+    )
+    subtypes_t = sa.table(
+        "ticket_subtypes", sa.column("id", sa.Integer), sa.column("type_id", sa.Integer),
+        sa.column("name", sa.String), sa.column("sort_order", sa.Integer),
+    )
+    items_t = sa.table(
+        "ticket_items", sa.column("subtype_id", sa.Integer),
+        sa.column("name", sa.String), sa.column("sort_order", sa.Integer),
+    )
+    for t_order, (type_name, subtypes) in enumerate(CATEGORIES.items()):
+        type_id = conn.execute(
+            types_t.insert().values(name=type_name, sort_order=t_order).returning(types_t.c.id)
+        ).scalar_one()
+        for s_order, (subtype_name, items) in enumerate(subtypes.items()):
+            subtype_id = conn.execute(
+                subtypes_t.insert()
+                .values(type_id=type_id, name=subtype_name, sort_order=s_order)
+                .returning(subtypes_t.c.id)
+            ).scalar_one()
+            for i_order, item_name in enumerate(items):
+                conn.execute(
+                    items_t.insert().values(
+                        subtype_id=subtype_id, name=item_name, sort_order=i_order
+                    )
+                )
+
 
 def downgrade() -> None:
     op.drop_table("email_messages")
     op.drop_table("time_entries")
     op.drop_table("ticket_notes")
     op.drop_table("tickets")
+    op.drop_table("ticket_items")
+    op.drop_table("ticket_subtypes")
+    op.drop_table("ticket_types")
     op.drop_table("ticket_counters")
     op.drop_table("statuses")
     op.drop_table("boards")

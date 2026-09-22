@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% set active = 'companies' %}
+{% block title %}{{ "Edit location" if location else "Add location" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit location" if location else "Add location" }}</h1>
+  <div class="sub">{{ company.name }}</div>
+</div>
+
+<form method="post" action="{{ '/locations/' ~ location.id ~ '/edit' if location else '/locations/new' }}">
+  <input type="hidden" name="company_id" value="{{ company.id }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field full">
+        <label for="name">Location name</label>
+        <input id="name" name="name" type="text" required value="{{ location.name if location else '' }}" placeholder="Main Office">
+      </div>
+      <div class="field full">
+        <label class="check"><input type="checkbox" name="is_primary" {% if location and location.is_primary %}checked{% endif %}> Primary location</label>
+      </div>
+      <div class="field">
+        <label for="address_line1">Street</label>
+        <input id="address_line1" name="address_line1" type="text" value="{{ location.address_line1 if location else '' }}">
+      </div>
+      <div class="field">
+        <label for="address_line2">Suite or unit</label>
+        <input id="address_line2" name="address_line2" type="text" value="{{ location.address_line2 if location else '' }}">
+      </div>
+      <div class="field">
+        <label for="city">City</label>
+        <input id="city" name="city" type="text" value="{{ location.city if location else '' }}">
+      </div>
+      <div class="field">
+        <label for="state">State</label>
+        <input id="state" name="state" type="text" value="{{ location.state if location else '' }}">
+      </div>
+      <div class="field">
+        <label for="postal_code">ZIP</label>
+        <input id="postal_code" name="postal_code" type="text" value="{{ location.postal_code if location else '' }}">
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" name="phone" type="text" value="{{ location.phone if location else '' }}">
+      </div>
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes">{{ location.notes if location else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if location else "Add location" }}</button>
+      <a class="btn secondary" href="/companies/{{ company.id }}#locations">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

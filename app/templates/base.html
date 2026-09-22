@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/app.css">
 <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+<script src="/static/app.js" defer></script>
 </head>
 <body>
 <div class="shell">
@@ -19,8 +20,9 @@
       <a href="/tickets" {% if active == 'tickets' %}aria-current="page"{% endif %}>Tickets</a>
       <a href="/boards" {% if active == 'boards' %}aria-current="page"{% endif %}>Boards</a>
       <a href="/companies" {% if active == 'companies' %}aria-current="page"{% endif %}>Companies</a>
-      <a href="/contacts" {% if active == 'contacts' %}aria-current="page"{% endif %}>Contacts</a>
-      <a href="/configurations" {% if active == 'configurations' %}aria-current="page"{% endif %}>Configurations</a>
+      <a href="/documents" {% if active == 'documents' %}aria-current="page"{% endif %}>Documents</a>
+      <a href="/credentials" {% if active == 'credentials' %}aria-current="page"{% endif %}>Credentials</a>
+      <a href="/reports" {% if active == 'reports' %}aria-current="page"{% endif %}>Reports</a>
     </nav>
     <div class="rail-foot">
       {{ user.full_name }}<br>

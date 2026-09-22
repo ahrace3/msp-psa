@@ -12,7 +12,7 @@ from app.models import (
 )
 from app.security import current_user
 from app.templating import templates
-from app.ticketing import create_ticket, default_status_for_board
+from app.ticketing import create_ticket, default_status_for_board, type_tree
 
 router = APIRouter()
 
@@ -111,6 +111,7 @@ def list_tickets(
                 func.lower(Ticket.subject).like(term),
                 func.lower(Ticket.number).like(term),
                 func.lower(Company.name).like(term),
+                Ticket.notes.any(func.lower(TicketNote.body).like(term)),
             )
         )
     tickets = db.scalars(stmt.order_by(Ticket.updated_at.desc()).limit(200)).all()
@@ -148,7 +149,7 @@ def new_ticket(
             "user": user, "companies": companies, "boards": boards,
             "contacts": contacts, "configurations": configs,
             "preselect_company": company_id, "preselect_board": board_id,
-            "priorities": PRIORITIES,
+            "priorities": PRIORITIES, "types": type_tree(db),
         },
     )
 
@@ -162,6 +163,9 @@ async def create_ticket_route(
     form = await request.form()
     contact_id = form.get("contact_id")
     configuration_id = form.get("configuration_id")
+    type_id = form.get("type_id")
+    subtype_id = form.get("subtype_id")
+    item_id = form.get("item_id")
 
     ticket = create_ticket(
         db,
@@ -173,6 +177,9 @@ async def create_ticket_route(
         configuration_id=int(configuration_id) if configuration_id else None,
         priority=form.get("priority") or "normal",
         initial_note=(form.get("initial_note") or "").strip() or None,
+        type_id=int(type_id) if type_id else None,
+        subtype_id=int(subtype_id) if subtype_id else None,
+        item_id=int(item_id) if item_id else None,
     )
     ticket.assigned_user_id = user.id
     db.commit()
@@ -216,6 +223,7 @@ def ticket_detail(
             "time_entries": time_entries, "total_minutes": total_minutes,
             "techs": techs, "statuses": board_statuses,
             "priorities": PRIORITIES, "today": date.today().isoformat(),
+            "types": type_tree(db),
         },
     )
 
@@ -234,7 +242,9 @@ async def add_note(
             TicketNote(
                 ticket_id=ticket_id,
                 user_id=user.id,
-                note_type=form.get("note_type") or "discussion",
+                is_discussion=form.get("is_discussion") == "on",
+                is_internal=form.get("is_internal") == "on",
+                is_resolution=form.get("is_resolution") == "on",
                 body=body,
             )
         )
@@ -287,6 +297,13 @@ async def update_ticket(
     ticket.priority = form.get("priority") or ticket.priority
     assigned = form.get("assigned_user_id")
     ticket.assigned_user_id = int(assigned) if assigned else None
+
+    type_id = form.get("type_id")
+    subtype_id = form.get("subtype_id")
+    item_id = form.get("item_id")
+    ticket.type_id = int(type_id) if type_id else None
+    ticket.subtype_id = int(subtype_id) if subtype_id else None
+    ticket.item_id = int(item_id) if item_id else None
 
     db.commit()
     return RedirectResponse(f"/tickets/{ticket_id}", status_code=303)

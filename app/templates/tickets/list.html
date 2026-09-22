@@ -8,7 +8,7 @@
 </div>
 
 <div class="search">
-  <input type="text" name="q" value="{{ q }}" placeholder="Search subject, number or company"
+  <input type="text" name="q" value="{{ q }}" placeholder="Search subject, number, company or note text"
          hx-get="/tickets{% if board_id %}?board_id={{ board_id }}{% endif %}"
          hx-trigger="keyup changed delay:250ms"
          hx-target="#rows" hx-swap="innerHTML" aria-label="Search tickets">

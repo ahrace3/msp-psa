@@ -1,0 +1,10 @@
+{% for doc, company in rows %}
+<tr>
+  <td><a href="/documents/{{ doc.id }}">{{ doc.title }}</a>{% if doc.is_pinned %} <span class="flag yes">pinned</span>{% endif %}</td>
+  <td><a href="/companies/{{ company.id }}">{{ company.name }}</a></td>
+  <td>{{ doc.category or "—" }}</td>
+  <td>{{ doc.updated_at.strftime("%b %-d, %Y") }}</td>
+</tr>
+{% else %}
+<tr><td colspan="4" class="empty">No documents match that search.</td></tr>
+{% endfor %}

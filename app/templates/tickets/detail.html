@@ -11,6 +11,7 @@
       {% if ticket.configuration %} · {{ ticket.configuration.name }}{% endif %}
       · source: {{ ticket.source }}
       · opened {{ ticket.created_at.strftime("%b %-d, %Y") }}
+      {% if ticket.type %} · {{ ticket.type.name }}{% if ticket.subtype %} / {{ ticket.subtype.name }}{% endif %}{% if ticket.item %} / {{ ticket.item.name }}{% endif %}{% endif %}
     </div>
   </div>
 </div>
@@ -25,7 +26,8 @@
         <div class="note-head">
           <span class="author">{{ n.author_label }}</span>
           <span>{{ n.created_at.strftime("%b %-d, %-I:%M %p") }}</span>
-          {% if n.note_type != 'discussion' %}<span class="note-tag {{ n.note_type }}">{{ n.note_type }}</span>{% endif %}
+          {% if n.is_internal %}<span class="note-tag internal">internal</span>{% endif %}
+          {% if n.is_resolution %}<span class="note-tag resolution">resolution</span>{% endif %}
         </div>
         <div class="note-body">{{ n.body }}</div>
       </div>
@@ -37,12 +39,10 @@
       <form class="quick-form" method="post" action="/tickets/{{ ticket.id }}/notes">
         <textarea name="body" placeholder="Add a note..." required></textarea>
         <div class="row">
-          <select name="note_type" style="width:auto">
-            <option value="discussion">Discussion</option>
-            <option value="internal">Internal (not client-visible)</option>
-            <option value="resolution">Resolution</option>
-          </select>
-          <button class="btn" type="submit">Add note</button>
+          <label class="check"><input type="checkbox" name="is_discussion" checked> Discussion</label>
+          <label class="check"><input type="checkbox" name="is_internal"> Internal (not client-visible)</label>
+          <label class="check"><input type="checkbox" name="is_resolution"> Resolution</label>
+          <button class="btn" type="submit" style="margin-left:auto">Add note</button>
         </div>
       </form>
     </div>
@@ -71,7 +71,12 @@
       <div class="empty"><p>No time logged yet.</p></div>
       {% endif %}
 
-      <form class="quick-form" method="post" action="/tickets/{{ ticket.id }}/time">
+      <form class="quick-form" method="post" action="/tickets/{{ ticket.id }}/time" id="time-entry-form">
+        <div class="timer-row">
+          <button type="button" class="btn secondary" id="timer-start">Start timer</button>
+          <button type="button" class="btn secondary" id="timer-stop" disabled>Stop timer</button>
+          <span class="mono timer-display" id="timer-display">00:00:00</span>
+        </div>
         <div class="row">
           <div class="field" style="width:120px">
             <label>Date</label>
@@ -79,7 +84,7 @@
           </div>
           <div class="field" style="width:100px">
             <label>Hours</label>
-            <input type="text" name="hours" placeholder="1.25" required>
+            <input type="text" name="hours" id="hours-field" placeholder="1.25" required>
           </div>
           <label class="check" style="align-self:end;padding-bottom:8px">
             <input type="checkbox" name="billable" checked> Billable
@@ -122,8 +127,68 @@
         <label>Board</label>
         <div>{{ ticket.board.name }}</div>
       </div>
+
+      <div class="side-field">
+        <label for="type_id">Type</label>
+        <select id="type_id" name="type_id">
+          <option value="">None</option>
+          {% for t in types %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="side-field">
+        <label for="subtype_id">Subtype</label>
+        <select id="subtype_id" name="subtype_id"><option value="">—</option></select>
+      </div>
+      <div class="side-field">
+        <label for="item_id">Item</label>
+        <select id="item_id" name="item_id"><option value="">—</option></select>
+      </div>
+
       <button class="btn" type="submit" style="width:100%">Save</button>
     </form>
   </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  initCategorySelects(
+    {{ types | tojson }}, "type_id", "subtype_id", "item_id",
+    {{ ticket.type_id | tojson }}, {{ ticket.subtype_id | tojson }}, {{ ticket.item_id | tojson }}
+  );
+
+  var startBtn = document.getElementById("timer-start");
+  var stopBtn = document.getElementById("timer-stop");
+  var display = document.getElementById("timer-display");
+  var hoursField = document.getElementById("hours-field");
+  var startedAt = null;
+  var tickHandle = null;
+
+  function pad(n) { return n < 10 ? "0" + n : "" + n; }
+  function render(elapsedMs) {
+    var totalSec = Math.floor(elapsedMs / 1000);
+    var h = Math.floor(totalSec / 3600);
+    var m = Math.floor((totalSec % 3600) / 60);
+    var s = totalSec % 60;
+    display.textContent = pad(h) + ":" + pad(m) + ":" + pad(s);
+  }
+
+  startBtn.addEventListener("click", function () {
+    startedAt = Date.now();
+    startBtn.disabled = true;
+    stopBtn.disabled = false;
+    tickHandle = setInterval(function () { render(Date.now() - startedAt); }, 1000);
+  });
+
+  stopBtn.addEventListener("click", function () {
+    if (!startedAt) return;
+    var elapsedMs = Date.now() - startedAt;
+    clearInterval(tickHandle);
+    var hours = elapsedMs / 3600000;
+    hoursField.value = hours < 0.01 ? "0.01" : hours.toFixed(2);
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    startedAt = null;
+  });
+});
+</script>
 {% endblock %}

@@ -83,6 +83,21 @@ class Company(TimestampMixin, Base):
     configurations: Mapped[list["Configuration"]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
     )
+    locations: Mapped[list["Location"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan", order_by="Location.is_primary.desc()"
+    )
+    documents: Mapped[list["Document"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan", order_by="Document.is_pinned.desc()"
+    )
+    credentials: Mapped[list["Credential"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan", order_by="Credential.name"
+    )
+    domains: Mapped[list["Domain"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan", order_by="Domain.expires_on"
+    )
+    ssl_certificates: Mapped[list["SSLCertificate"]] = relationship(
+        back_populates="company", cascade="all, delete-orphan", order_by="SSLCertificate.expires_on"
+    )
 
 
 class Contact(TimestampMixin, Base):
@@ -246,6 +261,56 @@ class TicketCounter(Base):
     next_seq: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 
+class TicketType(Base):
+    """Top of the Type > Subtype > Item categorization tree (CW/ITIL-style
+    incident classification). Seeded by migration; no admin UI yet."""
+
+    __tablename__ = "ticket_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    subtypes: Mapped[list["TicketSubtype"]] = relationship(
+        back_populates="type", cascade="all, delete-orphan", order_by="TicketSubtype.sort_order"
+    )
+
+
+class TicketSubtype(Base):
+    __tablename__ = "ticket_subtypes"
+    __table_args__ = (
+        UniqueConstraint("type_id", "name", name="uq_subtype_type_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    type_id: Mapped[int] = mapped_column(
+        ForeignKey("ticket_types.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    type: Mapped[TicketType] = relationship(back_populates="subtypes")
+    items: Mapped[list["TicketItem"]] = relationship(
+        back_populates="subtype", cascade="all, delete-orphan", order_by="TicketItem.sort_order"
+    )
+
+
+class TicketItem(Base):
+    __tablename__ = "ticket_items"
+    __table_args__ = (
+        UniqueConstraint("subtype_id", "name", name="uq_item_subtype_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    subtype_id: Mapped[int] = mapped_column(
+        ForeignKey("ticket_subtypes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    subtype: Mapped[TicketSubtype] = relationship(back_populates="items")
+
+
 class Ticket(TimestampMixin, Base):
     __tablename__ = "tickets"
 
@@ -272,6 +337,18 @@ class Ticket(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
 
+    # ITIL-style categorization. All optional — a ticket doesn't have to be
+    # fully categorized to exist, but reporting is much better when it is.
+    type_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ticket_types.id", ondelete="SET NULL"), index=True
+    )
+    subtype_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ticket_subtypes.id", ondelete="SET NULL"), index=True
+    )
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("ticket_items.id", ondelete="SET NULL"), index=True
+    )
+
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
     priority: Mapped[str] = mapped_column(String(16), default="normal", nullable=False)
     # email | rmm | manual | portal
@@ -290,6 +367,9 @@ class Ticket(TimestampMixin, Base):
     board: Mapped[Board] = relationship()
     status: Mapped[Status] = relationship()
     assigned_user: Mapped[User | None] = relationship()
+    type: Mapped[TicketType | None] = relationship()
+    subtype: Mapped[TicketSubtype | None] = relationship()
+    item: Mapped[TicketItem | None] = relationship()
 
     notes: Mapped[list["TicketNote"]] = relationship(
         back_populates="ticket", cascade="all, delete-orphan", order_by="TicketNote.created_at"
@@ -300,6 +380,10 @@ class Ticket(TimestampMixin, Base):
 
 
 class TicketNote(Base):
+    """A note is not one type — a tech can flag it as discussion, internal,
+    and/or resolution all at once (CW's model). Discussion defaults on;
+    the other two are opt-in flags, not an exclusive choice."""
+
     __tablename__ = "ticket_notes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -309,8 +393,12 @@ class TicketNote(Base):
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
-    # discussion | internal | resolution
-    note_type: Mapped[str] = mapped_column(String(16), default="discussion", nullable=False)
+    is_discussion: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Internal notes are never meant to reach a client-facing view (portal,
+    # outbound email) — that filtering happens wherever client-facing output
+    # is built; this flag is the source of truth for it.
+    is_internal: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_resolution: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     is_inbound_email: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -379,6 +467,132 @@ class EmailMessage(TimestampMixin, Base):
     error: Mapped[str | None] = mapped_column(Text)
 
     ticket: Mapped[Ticket | None] = relationship()
+
+
+class Location(TimestampMixin, Base):
+    """A physical site for a company. IT Glue calls this the same thing —
+    where equipment lives, who's onsite, what the network closet looks like."""
+
+    __tablename__ = "locations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    address_line1: Mapped[str | None] = mapped_column(String(200))
+    address_line2: Mapped[str | None] = mapped_column(String(200))
+    city: Mapped[str | None] = mapped_column(String(100))
+    state: Mapped[str | None] = mapped_column(String(40))
+    postal_code: Mapped[str | None] = mapped_column(String(20))
+    phone: Mapped[str | None] = mapped_column(String(40))
+
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    company: Mapped[Company] = relationship(back_populates="locations")
+
+
+class Document(TimestampMixin, Base):
+    """Free-form documentation — procedures, network notes, vendor info,
+    anything that isn't a credential. Body is plain text; no markdown
+    rendering yet, whitespace is preserved on display."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(80))
+    body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    created_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    updated_by_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    company: Mapped[Company] = relationship(back_populates="documents")
+    created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
+    updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
+
+
+class Credential(TimestampMixin, Base):
+    """A stored secret. secret_encrypted is a Fernet token, never plaintext —
+    see app/crypto.py. Decrypted only on an explicit reveal request, never
+    included in a normal page render."""
+
+    __tablename__ = "credentials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("locations.id", ondelete="SET NULL")
+    )
+    configuration_id: Mapped[int | None] = mapped_column(
+        ForeignKey("configurations.id", ondelete="SET NULL")
+    )
+    contact_id: Mapped[int | None] = mapped_column(
+        ForeignKey("contacts.id", ondelete="SET NULL")
+    )
+
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    category: Mapped[str | None] = mapped_column(String(80))
+    username: Mapped[str | None] = mapped_column(String(255))
+    secret_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    url: Mapped[str | None] = mapped_column(String(500))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    company: Mapped[Company] = relationship(back_populates="credentials")
+    location: Mapped[Location | None] = relationship()
+    configuration: Mapped[Configuration | None] = relationship()
+    contact: Mapped[Contact | None] = relationship()
+
+
+class Domain(TimestampMixin, Base):
+    """IT Glue's Domain Tracker. Structured (not free-text) because the
+    expiration date needs to be queryable for the "expiring soon" report."""
+
+    __tablename__ = "domains"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    domain_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    registrar: Mapped[str | None] = mapped_column(String(120))
+    dns_provider: Mapped[str | None] = mapped_column(String(120))
+    expires_on: Mapped[date | None] = mapped_column(Date, index=True)
+    auto_renew: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    company: Mapped[Company] = relationship(back_populates="domains")
+
+
+class SSLCertificate(TimestampMixin, Base):
+    """IT Glue's SSL Certificate Tracker. Same reasoning as Domain — the
+    expiration date drives the report, so it's a real column, not prose."""
+
+    __tablename__ = "ssl_certificates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    common_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    issued_by: Mapped[str | None] = mapped_column(String(120))
+    installed_location: Mapped[str | None] = mapped_column(String(255))
+    expires_on: Mapped[date | None] = mapped_column(Date, index=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    company: Mapped[Company] = relationship(back_populates="ssl_certificates")
 
 
 class SyncRun(Base):

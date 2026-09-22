@@ -25,5 +25,11 @@ class Settings(BaseSettings):
 
     default_ticket_board_slug: str = "triage"
 
+    # Fernet key for encrypting stored credentials. Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # Required before the Credentials feature can be used; nothing else
+    # breaks if it's blank.
+    credential_encryption_key: str = ""
+
 
 settings = Settings()

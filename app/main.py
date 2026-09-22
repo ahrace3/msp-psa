@@ -9,7 +9,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.db import get_db
 from app.models import Company, Configuration, Contact, Status, Ticket, User
-from app.routes import auth, companies, configurations, contacts, tickets
+from app.routes import auth, companies, configurations, contacts, documentation, reports, tickets
 from app.security import current_user
 from app.templating import templates
 
@@ -31,6 +31,8 @@ app.include_router(companies.router)
 app.include_router(contacts.router)
 app.include_router(configurations.router)
 app.include_router(tickets.router)
+app.include_router(documentation.router)
+app.include_router(reports.router)
 
 
 @app.exception_handler(StarletteHTTPException)

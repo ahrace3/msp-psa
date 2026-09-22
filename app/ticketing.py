@@ -47,6 +47,31 @@ def board_by_slug(db: Session, slug: str) -> Board | None:
     return db.scalar(select(Board).where(Board.slug == slug))
 
 
+def type_tree(db: Session) -> list[dict]:
+    """The full Type > Subtype > Item tree as plain nested dicts, ready to
+    embed as JSON for the cascading-select JS on the ticket forms."""
+    from app.models import TicketType  # local import avoids a cycle at module load
+
+    types = db.scalars(
+        select(TicketType).order_by(TicketType.sort_order)
+    ).all()
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "subtypes": [
+                {
+                    "id": st.id,
+                    "name": st.name,
+                    "items": [{"id": i.id, "name": i.name} for i in st.items],
+                }
+                for st in t.subtypes
+            ],
+        }
+        for t in types
+    ]
+
+
 def create_ticket(
     db: Session,
     *,
@@ -60,6 +85,9 @@ def create_ticket(
     initial_note: str | None = None,
     initial_note_is_email: bool = False,
     status_id: int | None = None,
+    type_id: int | None = None,
+    subtype_id: int | None = None,
+    item_id: int | None = None,
 ) -> Ticket:
     status = None
     if status_id:
@@ -76,6 +104,9 @@ def create_ticket(
         configuration_id=configuration_id,
         board_id=board_id,
         status_id=status.id,
+        type_id=type_id,
+        subtype_id=subtype_id,
+        item_id=item_id,
         subject=subject[:255],
         priority=priority,
         source=source,
@@ -87,7 +118,7 @@ def create_ticket(
         db.add(
             TicketNote(
                 ticket_id=ticket.id,
-                note_type="discussion",
+                is_discussion=True,
                 body=initial_note,
                 is_inbound_email=initial_note_is_email,
             )

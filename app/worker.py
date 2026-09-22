@@ -111,7 +111,7 @@ def _email_poll(db, payload: dict) -> None:
                 db.add(
                     TicketNote(
                         ticket_id=existing_ticket.id,
-                        note_type="discussion",
+                        is_discussion=True,
                         body=body,
                         is_inbound_email=True,
                     )

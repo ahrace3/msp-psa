@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% set active = 'documents' %}
+{% block title %}{{ document.title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ document.title }}</h1>
+    <div class="sub">
+      <a href="/companies/{{ document.company.id }}">{{ document.company.name }}</a>
+      {% if document.category %} · {{ document.category }}{% endif %}
+      · updated {{ document.updated_at.strftime("%b %-d, %Y") }}
+      {% if document.updated_by %} by {{ document.updated_by.full_name }}{% endif %}
+    </div>
+  </div>
+  <a class="btn secondary" href="/documents/{{ document.id }}/edit">Edit</a>
+</div>
+
+<div class="panel">
+  <div style="padding:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6">{{ document.body }}</div>
+</div>
+{% endblock %}
