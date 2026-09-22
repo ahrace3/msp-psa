@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ app_name }}{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/app.css">
+<script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-brand">{{ app_name }}</div>
+    <nav>
+      <a href="/" {% if active == 'dashboard' %}aria-current="page"{% endif %}>Dashboard</a>
+      <a href="/tickets" {% if active == 'tickets' %}aria-current="page"{% endif %}>Tickets</a>
+      <a href="/boards" {% if active == 'boards' %}aria-current="page"{% endif %}>Boards</a>
+      <a href="/companies" {% if active == 'companies' %}aria-current="page"{% endif %}>Companies</a>
+      <a href="/documents" {% if active == 'documents' %}aria-current="page"{% endif %}>Documents</a>
+      <a href="/credentials" {% if active == 'credentials' %}aria-current="page"{% endif %}>Credentials</a>
+      <a href="/reports" {% if active == 'reports' %}aria-current="page"{% endif %}>Reports</a>
+    </nav>
+    <div class="rail-foot">
+      {{ user.full_name }}<br>
+      <a href="/logout">Sign out</a>
+    </div>
+  </aside>
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

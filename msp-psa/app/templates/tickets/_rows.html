@@ -1,0 +1,14 @@
+{% for t in tickets %}
+<tr>
+  <td class="ticket-number">{{ t.number }}</td>
+  <td><a href="/tickets/{{ t.id }}">{{ t.subject }}</a></td>
+  <td>{{ t.company.name }}</td>
+  <td>{{ t.board.name }}</td>
+  <td><span class="state {{ 'inactive' if t.status.is_closed else 'active' }}">{{ t.status.name }}</span></td>
+  <td><span class="priority {{ t.priority }}">{{ t.priority }}</span></td>
+  <td>{{ t.assigned_user.full_name if t.assigned_user else "Unassigned" }}</td>
+  <td>{{ t.updated_at.strftime("%b %-d, %-I:%M %p") }}</td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="empty">No tickets match.</td></tr>
+{% endfor %}

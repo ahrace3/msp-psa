@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% set active = 'reports' %}
+{% block title %}Reports · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Reports</h1></div>
+
+<div class="stats">
+  <div class="stat"><div class="value">{{ tickets_opened_7d }}</div><div class="label">Opened last 7 days</div></div>
+  <div class="stat"><div class="value">{{ tickets_closed_7d }}</div><div class="label">Closed last 7 days</div></div>
+  <div class="stat"><div class="value">{{ tickets_closed_30d }}</div><div class="label">Closed last 30 days</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Open tickets by board</h2></div>
+  {% if open_by_board %}
+  <table>
+    <thead><tr><th>Board</th><th class="num">Open</th></tr></thead>
+    <tbody>
+      {% for name, count in open_by_board %}
+      <tr><td>{{ name }}</td><td class="num">{{ count }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>No open tickets.</p></div>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="panel-head"><h2>Time logged this week</h2></div>
+  {% if time_by_tech %}
+  <table>
+    <thead><tr><th>Tech</th><th class="num">Total hrs</th><th class="num">Billable hrs</th></tr></thead>
+    <tbody>
+      {% for row in time_by_tech %}
+      <tr>
+        <td>{{ row.name }}</td>
+        <td class="num">{{ "%.2f"|format(row.total / 60) }}</td>
+        <td class="num">{{ "%.2f"|format(row.billable / 60) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>No time logged in the last 7 days.</p></div>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Unbilled billable hours</h2>
+    <span class="sub">By company — not yet on an invoice</span>
+  </div>
+  {% if unbilled_rows %}
+  <table>
+    <thead><tr><th>Company</th><th class="num">Hours</th></tr></thead>
+    <tbody>
+      {% for name, minutes in unbilled_rows %}
+      <tr><td>{{ name }}</td><td class="num">{{ "%.2f"|format(minutes / 60) }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>Nothing unbilled right now.</p></div>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Expiring soon</h2>
+    <span class="sub">Domains, SSL certificates and device warranties within {{ expiring_within_days }} days</span>
+  </div>
+  {% if expiring %}
+  <table>
+    <thead><tr><th>Type</th><th>Name</th><th>Company</th><th>Expires</th></tr></thead>
+    <tbody>
+      {% for row in expiring %}
+      <tr>
+        <td>{{ row.kind }}</td>
+        <td>{{ row.name }}</td>
+        <td>{{ row.company }}</td>
+        <td>{{ row.expires_on.strftime("%b %-d, %Y") }}{% if row.expires_on < today %} <span class="flag" style="color:var(--crit)">overdue</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>Nothing expiring in the next {{ expiring_within_days }} days.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

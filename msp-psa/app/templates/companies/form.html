@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% set active = 'companies' %}
+{% set editing = company and company.id is defined and company.id %}
+{% block title %}{{ "Edit company" if editing else "Add company" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit company" if editing else "Add company" }}</h1>
+</div>
+
+{% if error %}<div class="notice">{{ error }}</div>{% endif %}
+
+<form method="post" action="{{ '/companies/' ~ company.id ~ '/edit' if editing else '/companies/new' }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field">
+        <label for="name">Company name</label>
+        <input id="name" name="name" type="text" required value="{{ company.name if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="identifier">Identifier</label>
+        <input id="identifier" name="identifier" type="text" required maxlength="32"
+               value="{{ company.identifier if company else '' }}"
+               placeholder="Short code used on tickets and invoices">
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if company and company.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="phone">Main phone</label>
+        <input id="phone" name="phone" type="text" value="{{ company.phone if company else '' }}">
+      </div>
+      <div class="field full">
+        <label for="website">Website</label>
+        <input id="website" name="website" type="text" value="{{ company.website if company else '' }}">
+      </div>
+
+      <fieldset><legend>Address</legend></fieldset>
+      <div class="field">
+        <label for="address_line1">Street</label>
+        <input id="address_line1" name="address_line1" type="text" value="{{ company.address_line1 if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="address_line2">Suite or unit</label>
+        <input id="address_line2" name="address_line2" type="text" value="{{ company.address_line2 if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="city">City</label>
+        <input id="city" name="city" type="text" value="{{ company.city if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="state">State</label>
+        <input id="state" name="state" type="text" value="{{ company.state if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="postal_code">ZIP</label>
+        <input id="postal_code" name="postal_code" type="text" value="{{ company.postal_code if company else '' }}">
+      </div>
+
+      <fieldset><legend>Integration keys</legend></fieldset>
+      <div class="field">
+        <label for="ninja_org_id">NinjaRMM organization ID</label>
+        <input id="ninja_org_id" name="ninja_org_id" type="text" value="{{ company.ninja_org_id if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="m365_tenant_id">Microsoft 365 tenant ID</label>
+        <input id="m365_tenant_id" name="m365_tenant_id" type="text" value="{{ company.m365_tenant_id if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="gsuite_domain">Google Workspace domain</label>
+        <input id="gsuite_domain" name="gsuite_domain" type="text" value="{{ company.gsuite_domain if company else '' }}">
+      </div>
+      <div class="field">
+        <label for="qbo_customer_id">QuickBooks customer ID</label>
+        <input id="qbo_customer_id" name="qbo_customer_id" type="text" value="{{ company.qbo_customer_id if company else '' }}">
+      </div>
+
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes">{{ company.notes if company else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if editing else "Create company" }}</button>
+      <a class="btn secondary" href="{{ '/companies/' ~ company.id if editing else '/companies' }}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

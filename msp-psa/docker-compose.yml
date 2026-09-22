@@ -1,0 +1,82 @@
+# Container Station 3.x: Applications > Create > paste this file.
+# Tuned for a TS-1253U-RP (Celeron J1900, 4GB). Keep memory limits in place
+# until the second SODIMM is installed.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    command:
+      - postgres
+      - -c
+      - max_connections=30
+      - -c
+      - shared_buffers=192MB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - effective_cache_size=512MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 768m
+
+  web:
+    image: ${IMAGE}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      APP_NAME: ${APP_NAME}
+      BASE_URL: ${BASE_URL}
+      TIMEZONE: ${TIMEZONE}
+      # Encrypts stored credentials (Documentation layer). Generate with:
+      #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    ports:
+      - "8090:8000"
+    volumes:
+      - /share/Container/psa/attachments:/srv/attachments
+    mem_limit: 512m
+
+  worker:
+    image: ${IMAGE}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      APP_NAME: ${APP_NAME}
+      BASE_URL: ${BASE_URL}
+      TIMEZONE: ${TIMEZONE}
+      # Shared mailbox email connector. Leave blank and the worker simply
+      # skips the poll — nothing breaks until these are filled in.
+      GRAPH_TENANT_ID: ${GRAPH_TENANT_ID:-}
+      GRAPH_CLIENT_ID: ${GRAPH_CLIENT_ID:-}
+      GRAPH_CLIENT_SECRET: ${GRAPH_CLIENT_SECRET:-}
+      GRAPH_MAILBOX: ${GRAPH_MAILBOX:-support@yourdomain.com}
+    command: python -m app.worker
+    volumes:
+      - /share/Container/psa/attachments:/srv/attachments
+    mem_limit: 384m
+
+volumes:
+  pgdata:

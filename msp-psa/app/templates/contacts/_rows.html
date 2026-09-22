@@ -1,0 +1,13 @@
+{% for contact, company in rows %}
+<tr>
+  <td>{{ contact.display_name }}{% if contact.is_primary %} <span class="flag">primary</span>{% endif %}</td>
+  <td><a href="/companies/{{ company.id }}">{{ company.name }}</a></td>
+  <td class="mono">{{ contact.email or "—" }}</td>
+  <td><span class="flag {{ 'yes' if contact.is_licensed else '' }}">{{ "yes" if contact.is_licensed else "no" }}</span></td>
+  <td><span class="flag {{ 'yes' if contact.billable_user else '' }}">{{ "yes" if contact.billable_user else "no" }}</span></td>
+  <td>{{ contact.license_source }}</td>
+  <td><a href="/contacts/{{ contact.id }}/edit">Edit</a></td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="empty">No contacts match that search.</td></tr>
+{% endfor %}

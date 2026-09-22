@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% set active = 'configurations' %}
+{% block title %}Configurations · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Configurations</h1>
+  <a class="btn" href="/configurations/new">Add configuration</a>
+</div>
+
+<div class="search">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search name, serial, user or company"
+         hx-get="/configurations" hx-trigger="keyup changed delay:250ms"
+         hx-target="#rows" hx-swap="innerHTML" aria-label="Search configurations">
+</div>
+
+<div class="panel">
+  <table>
+    <thead><tr><th>Name</th><th>Company</th><th>Type</th><th>Status</th><th>Serial</th><th>Last user</th><th>Billable</th><th></th></tr></thead>
+    <tbody id="rows">{% include "configurations/_rows.html" %}</tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set active = 'companies' %}
+{% block title %}{{ "Edit SSL certificate" if cert else "Add SSL certificate" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit SSL certificate" if cert else "Add SSL certificate" }}</h1>
+  <div class="sub">{{ company.name }}</div>
+</div>
+
+<form method="post" action="{{ '/ssl-certificates/' ~ cert.id ~ '/edit' if cert else '/ssl-certificates/new' }}">
+  <input type="hidden" name="company_id" value="{{ company.id }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field full">
+        <label for="common_name">Common name</label>
+        <input id="common_name" name="common_name" type="text" required value="{{ cert.common_name if cert else '' }}" placeholder="*.example.com">
+      </div>
+      <div class="field">
+        <label for="issued_by">Issued by</label>
+        <input id="issued_by" name="issued_by" type="text" value="{{ cert.issued_by if cert else '' }}" placeholder="Let's Encrypt, DigiCert, etc.">
+      </div>
+      <div class="field">
+        <label for="expires_on">Expires</label>
+        <input id="expires_on" name="expires_on" type="date" value="{{ cert.expires_on.isoformat() if cert and cert.expires_on else '' }}">
+      </div>
+      <div class="field full">
+        <label for="installed_location">Installed on</label>
+        <input id="installed_location" name="installed_location" type="text" value="{{ cert.installed_location if cert else '' }}" placeholder="Firewall, web server, etc.">
+      </div>
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes">{{ cert.notes if cert else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if cert else "Add certificate" }}</button>
+      <a class="btn secondary" href="/companies/{{ company.id }}#ssl-certificates">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

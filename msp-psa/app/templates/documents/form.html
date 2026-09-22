@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% set active = 'documents' %}
+{% block title %}{{ "Edit document" if document else "Add document" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit document" if document else "Add document" }}</h1>
+  <div class="sub">{{ company.name }}</div>
+</div>
+
+<form method="post" action="{{ '/documents/' ~ document.id ~ '/edit' if document else '/documents/new' }}">
+  <input type="hidden" name="company_id" value="{{ company.id }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field full">
+        <label for="title">Title</label>
+        <input id="title" name="title" type="text" required value="{{ document.title if document else '' }}">
+      </div>
+      <div class="field">
+        <label for="category">Category</label>
+        <input id="category" name="category" type="text" list="doc-categories" value="{{ document.category if document else '' }}">
+        <datalist id="doc-categories">
+          {% for c in categories %}<option value="{{ c }}">{% endfor %}
+        </datalist>
+      </div>
+      <div class="field" style="align-self:end">
+        <label class="check"><input type="checkbox" name="is_pinned" {% if document and document.is_pinned %}checked{% endif %}> Pin to top of company page</label>
+      </div>
+      <div class="field full">
+        <label for="body">Content</label>
+        <textarea id="body" name="body" style="min-height:320px;font-family:'IBM Plex Mono',monospace">{{ document.body if document else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if document else "Create document" }}</button>
+      <a class="btn secondary" href="{{ '/documents/' ~ document.id if document else '/companies/' ~ company.id ~ '#documents' }}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

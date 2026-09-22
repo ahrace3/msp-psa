@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% set active = 'configurations' %}
+{% set cfg = configuration %}
+{% block title %}{{ "Edit configuration" if cfg else "Add configuration" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit configuration" if cfg else "Add configuration" }}</h1>
+</div>
+
+<form method="post" action="{{ '/configurations/' ~ cfg.id ~ '/edit' if cfg else '/configurations/new' }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field">
+        <label for="company_id">Company</label>
+        <select id="company_id" name="company_id" required>
+          {% for c in companies %}
+          <option value="{{ c.id }}" {% if preselect == c.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="contact_id">Assigned to</label>
+        <select id="contact_id" name="contact_id">
+          <option value="">Unassigned</option>
+          {% for ct in contacts %}
+          <option value="{{ ct.id }}" {% if cfg and cfg.contact_id == ct.id %}selected{% endif %}>{{ ct.display_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="name">Device name</label>
+        <input id="name" name="name" type="text" required value="{{ cfg.name if cfg else '' }}">
+      </div>
+      <div class="field">
+        <label for="config_type">Type</label>
+        <select id="config_type" name="config_type">
+          {% for t in config_types %}
+          <option value="{{ t }}" {% if cfg and cfg.config_type == t %}selected{% endif %}>{{ t.replace("_", " ") }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if cfg and cfg.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="operating_system">Operating system</label>
+        <input id="operating_system" name="operating_system" type="text" value="{{ cfg.operating_system if cfg else '' }}">
+      </div>
+      <div class="field">
+        <label for="manufacturer">Manufacturer</label>
+        <input id="manufacturer" name="manufacturer" type="text" value="{{ cfg.manufacturer if cfg else '' }}">
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <input id="model" name="model" type="text" value="{{ cfg.model if cfg else '' }}">
+      </div>
+      <div class="field">
+        <label for="serial_number">Serial number</label>
+        <input id="serial_number" name="serial_number" type="text" value="{{ cfg.serial_number if cfg else '' }}">
+      </div>
+      <div class="field">
+        <label for="warranty_expires_on">Warranty expires</label>
+        <input id="warranty_expires_on" name="warranty_expires_on" type="date"
+               value="{{ cfg.warranty_expires_on.isoformat() if cfg and cfg.warranty_expires_on else '' }}">
+      </div>
+      <div class="field">
+        <label for="ip_address">IP address</label>
+        <input id="ip_address" name="ip_address" type="text" value="{{ cfg.ip_address if cfg else '' }}">
+      </div>
+      <div class="field">
+        <label for="last_logged_in_user">Last logged-in user</label>
+        <input id="last_logged_in_user" name="last_logged_in_user" type="text"
+               value="{{ cfg.last_logged_in_user if cfg else '' }}">
+      </div>
+
+      <div class="field full">
+        <label class="check"><input type="checkbox" name="billable" {% if not cfg or cfg.billable %}checked{% endif %}> Counts toward per-device billing</label>
+      </div>
+
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes">{{ cfg.notes if cfg else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if cfg else "Create configuration" }}</button>
+      <a class="btn secondary" href="{{ '/companies/' ~ cfg.company_id if cfg else '/configurations' }}">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

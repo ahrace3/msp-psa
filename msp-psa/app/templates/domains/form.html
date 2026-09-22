@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set active = 'companies' %}
+{% block title %}{{ "Edit domain" if domain else "Add domain" }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ "Edit domain" if domain else "Add domain" }}</h1>
+  <div class="sub">{{ company.name }}</div>
+</div>
+
+<form method="post" action="{{ '/domains/' ~ domain.id ~ '/edit' if domain else '/domains/new' }}">
+  <input type="hidden" name="company_id" value="{{ company.id }}">
+  <div class="panel">
+    <div class="form-grid">
+      <div class="field full">
+        <label for="domain_name">Domain name</label>
+        <input id="domain_name" name="domain_name" type="text" required value="{{ domain.domain_name if domain else '' }}" placeholder="example.com">
+      </div>
+      <div class="field">
+        <label for="registrar">Registrar</label>
+        <input id="registrar" name="registrar" type="text" value="{{ domain.registrar if domain else '' }}" placeholder="GoDaddy, Namecheap, etc.">
+      </div>
+      <div class="field">
+        <label for="dns_provider">DNS provider</label>
+        <input id="dns_provider" name="dns_provider" type="text" value="{{ domain.dns_provider if domain else '' }}">
+      </div>
+      <div class="field">
+        <label for="expires_on">Expires</label>
+        <input id="expires_on" name="expires_on" type="date" value="{{ domain.expires_on.isoformat() if domain and domain.expires_on else '' }}">
+      </div>
+      <div class="field" style="align-self:end">
+        <label class="check"><input type="checkbox" name="auto_renew" {% if not domain or domain.auto_renew %}checked{% endif %}> Auto-renew enabled</label>
+      </div>
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes">{{ domain.notes if domain else '' }}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn" type="submit">{{ "Save changes" if domain else "Add domain" }}</button>
+      <a class="btn secondary" href="/companies/{{ company.id }}#domains">Cancel</a>
+    </div>
+  </div>
+</form>
+{% endblock %}

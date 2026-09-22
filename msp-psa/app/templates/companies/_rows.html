@@ -1,0 +1,12 @@
+{% for c in companies %}
+<tr>
+  <td><a href="/companies/{{ c.id }}">{{ c.name }}</a></td>
+  <td class="mono">{{ c.identifier }}</td>
+  <td><span class="state {{ c.status }}">{{ c.status }}</span></td>
+  <td>{{ c.city or "—" }}</td>
+  <td>{{ c.phone or "—" }}</td>
+  <td class="mono">{{ c.ninja_org_id or "—" }}</td>
+</tr>
+{% else %}
+<tr><td colspan="6" class="empty">No companies match that search.</td></tr>
+{% endfor %}

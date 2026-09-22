@@ -1,0 +1,14 @@
+{% for cfg, company in rows %}
+<tr>
+  <td>{{ cfg.name }}</td>
+  <td><a href="/companies/{{ company.id }}">{{ company.name }}</a></td>
+  <td>{{ cfg.config_type.replace("_", " ") }}</td>
+  <td><span class="state {{ cfg.status }}">{{ cfg.status }}</span></td>
+  <td class="mono">{{ cfg.serial_number or "—" }}</td>
+  <td class="mono">{{ cfg.last_logged_in_user or "—" }}</td>
+  <td><span class="flag {{ 'yes' if cfg.billable else '' }}">{{ "yes" if cfg.billable else "no" }}</span></td>
+  <td><a href="/configurations/{{ cfg.id }}/edit">Edit</a></td>
+</tr>
+{% else %}
+<tr><td colspan="8" class="empty">No configurations match that search.</td></tr>
+{% endfor %}
