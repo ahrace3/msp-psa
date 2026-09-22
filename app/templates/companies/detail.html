@@ -15,10 +15,44 @@
 </div>
 
 <div class="stats">
+  <div class="stat"><div class="value">{{ open_ticket_count }}</div><div class="label">Open tickets</div></div>
   <div class="stat"><div class="value">{{ contacts | length }}</div><div class="label">Contacts</div></div>
   <div class="stat"><div class="value">{{ licensed_count }}</div><div class="label">Licensed users</div></div>
   <div class="stat"><div class="value">{{ configurations | length }}</div><div class="label">Configurations</div></div>
   <div class="stat"><div class="value">{{ billable_configs }}</div><div class="label">Billable devices</div></div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Tickets</h2>
+    <div style="display:flex;gap:10px;align-items:center">
+      <a href="/tickets?company_id={{ company.id }}&show_closed=true" class="sub">Show closed</a>
+      <a class="btn" href="/tickets/new?company_id={{ company.id }}">New ticket</a>
+    </div>
+  </div>
+  {% if open_tickets %}
+  <table>
+    <thead><tr><th>#</th><th>Subject</th><th>Board</th><th>Status</th><th>Priority</th><th>Assigned</th><th>Updated</th></tr></thead>
+    <tbody>
+      {% for t in open_tickets %}
+      <tr>
+        <td class="ticket-number">{{ t.number }}</td>
+        <td><a href="/tickets/{{ t.id }}">{{ t.subject }}</a></td>
+        <td>{{ t.board.name }}</td>
+        <td><span class="state active">{{ t.status.name }}</span></td>
+        <td><span class="priority {{ t.priority }}">{{ t.priority }}</span></td>
+        <td>{{ t.assigned_user.full_name if t.assigned_user else "Unassigned" }}</td>
+        <td>{{ t.updated_at.strftime("%b %-d") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">
+    <p>No open tickets for this company.</p>
+    <a class="btn" href="/tickets/new?company_id={{ company.id }}">New ticket</a>
+  </div>
+  {% endif %}
 </div>
 
 <div class="panel">

@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Company, Configuration, Contact, User
+from app.models import Company, Configuration, Contact, Status, Ticket, User
 from app.security import current_user
 from app.templating import templates
 
@@ -117,6 +117,17 @@ def company_detail(
         .where(Configuration.company_id == company_id)
         .order_by(Configuration.name)
     ).all()
+    from sqlalchemy.orm import joinedload
+    open_tickets = db.scalars(
+        select(Ticket)
+        .options(
+            joinedload(Ticket.board), joinedload(Ticket.status),
+            joinedload(Ticket.assigned_user),
+        )
+        .join(Status, Ticket.status_id == Status.id)
+        .where(Ticket.company_id == company_id, Status.is_closed.is_(False))
+        .order_by(Ticket.updated_at.desc())
+    ).all()
 
     return templates.TemplateResponse(
         request,
@@ -126,6 +137,8 @@ def company_detail(
             "company": company,
             "contacts": contacts,
             "configurations": configs,
+            "open_tickets": open_tickets,
+            "open_ticket_count": len(open_tickets),
             "licensed_count": sum(1 for c in contacts if c.is_licensed),
             "billable_configs": sum(1 for c in configs if c.billable),
         },

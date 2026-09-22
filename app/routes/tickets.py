@@ -90,38 +90,52 @@ def list_tickets(
     q: str = "",
     board_id: int | None = None,
     show_closed: bool = False,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    stmt = (
-        select(Ticket)
-        .options(
-            joinedload(Ticket.company), joinedload(Ticket.board),
-            joinedload(Ticket.status), joinedload(Ticket.assigned_user),
-        )
-    )
+    # Build the base query. Keep the Status join separate from the
+    # joinedload so SQLAlchemy doesn't see two JOIN paths to the same table.
+    stmt = select(Ticket).join(Status, Ticket.status_id == Status.id)
+
     if board_id:
         stmt = stmt.where(Ticket.board_id == board_id)
+    if company_id:
+        stmt = stmt.where(Ticket.company_id == company_id)
     if not show_closed:
-        stmt = stmt.join(Status, Ticket.status_id == Status.id).where(Status.is_closed.is_(False))
+        stmt = stmt.where(Status.is_closed.is_(False))
     if q:
         term = f"%{q.lower()}%"
+        note_match = db.scalars(
+            select(TicketNote.ticket_id)
+            .where(func.lower(TicketNote.body).like(term))
+            .distinct()
+        ).all()
         stmt = stmt.join(Company, Ticket.company_id == Company.id).where(
             or_(
                 func.lower(Ticket.subject).like(term),
                 func.lower(Ticket.number).like(term),
                 func.lower(Company.name).like(term),
-                Ticket.notes.any(func.lower(TicketNote.body).like(term)),
+                Ticket.id.in_(note_match),
             )
         )
-    tickets = db.scalars(stmt.order_by(Ticket.updated_at.desc()).limit(200)).all()
+
+    tickets = db.scalars(
+        stmt.options(
+            joinedload(Ticket.company), joinedload(Ticket.board),
+            joinedload(Ticket.status), joinedload(Ticket.assigned_user),
+        )
+        .order_by(Ticket.updated_at.desc())
+        .limit(200)
+    ).all()
+
     boards = db.scalars(select(Board).order_by(Board.sort_order)).all()
 
     template = "tickets/_rows.html" if request.headers.get("HX-Request") else "tickets/list.html"
     return templates.TemplateResponse(
         request, template,
         {"user": user, "tickets": tickets, "boards": boards, "q": q,
-         "board_id": board_id, "show_closed": show_closed},
+         "board_id": board_id, "show_closed": show_closed, "company_id": company_id},
     )
 
 

@@ -1,22 +1,43 @@
-/* Dense internal console. One bold element (the dark rail); everything else
-   stays quiet so data reads fast. */
+/* Dense internal console — dark by default, readable at 2am.
+   Light mode override is available but the default is always dark. */
 
 :root {
-  --rail: #10171d;
-  --rail-text: #9fb0bd;
-  --rail-text-strong: #f2f6f9;
-  --canvas: #edf0f3;
-  --surface: #ffffff;
-  --border: #c9d2da;
-  --border-soft: #e2e8ed;
-  --ink: #172029;
-  --muted: #5a6875;
-  --accent: #0c5b6b;
-  --accent-hover: #094653;
-  --ok: #2c6b45;
-  --warn: #8a5a07;
-  --crit: #9b2c2c;
+  /* Dark theme tokens (default) */
+  --rail: #0d1117;
+  --rail-text: #8b9ab0;
+  --rail-text-strong: #e6edf3;
+  --canvas: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --border-soft: #21262d;
+  --ink: #e6edf3;
+  --muted: #7d8590;
+  --accent: #1f9cf0;
+  --accent-hover: #388bfd;
+  --ok: #3fb950;
+  --warn: #e3b341;
+  --crit: #f85149;
   --rail-w: 212px;
+}
+
+/* Light mode only when the user explicitly picks it in the OS */
+@media (prefers-color-scheme: light) {
+  :root {
+    --rail: #10171d;
+    --rail-text: #9fb0bd;
+    --rail-text-strong: #f2f6f9;
+    --canvas: #f0f2f5;
+    --surface: #ffffff;
+    --border: #c9d2da;
+    --border-soft: #e2e8ed;
+    --ink: #172029;
+    --muted: #5a6875;
+    --accent: #0c5b6b;
+    --accent-hover: #094653;
+    --ok: #2c6b45;
+    --warn: #8a5a07;
+    --crit: #9b2c2c;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -158,13 +179,13 @@ th {
   color: var(--muted);
   padding: 8px 14px;
   border-bottom: 1px solid var(--border);
-  background: #f7f9fa;
+  background: var(--border-soft);
   position: sticky;
   top: 0;
 }
 td { padding: 8px 14px; border-bottom: 1px solid var(--border-soft); }
 tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: #f5f8f9; }
+tbody tr:hover { background: rgba(255,255,255,0.03); }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .empty { padding: 28px 14px; color: var(--muted); }
@@ -198,14 +219,14 @@ tbody tr:hover { background: #f5f8f9; }
 .checks { display: flex; flex-wrap: wrap; gap: 18px; }
 .check { display: flex; align-items: center; gap: 7px; }
 .check input { width: auto; }
-.form-actions { display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--border-soft); background: #fafbfc; }
+.form-actions { display: flex; gap: 10px; padding: 14px 16px; border-top: 1px solid var(--border-soft); background: var(--canvas); }
 fieldset { border: 0; margin: 0; padding: 0; grid-column: 1 / -1; }
 fieldset legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 10px 0 2px; }
 
-.notice { background: #fdf3f2; border: 1px solid #e6c3c0; color: var(--crit); padding: 9px 12px; border-radius: 3px; margin-bottom: 14px; }
+.notice { background: rgba(248,81,73,0.12); border: 1px solid #e6c3c0; color: var(--crit); padding: 9px 12px; border-radius: 3px; margin-bottom: 14px; }
 
 /* Login */
-.login-wrap { display: grid; place-items: center; min-height: 100vh; padding: 20px; }
+.login-wrap { display: grid; place-items: center; min-height: 100vh; padding: 20px; background: var(--canvas); }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; width: 100%; max-width: 360px; padding: 26px; }
 .login-card h1 { font-size: 18px; margin: 0 0 4px; }
 .login-card p.sub { color: var(--muted); margin: 0 0 20px; font-size: 13px; }
@@ -224,8 +245,8 @@ fieldset legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padd
   border: 1px solid var(--border);
   color: var(--muted);
 }
-.priority.high { color: var(--warn); border-color: #e3c68a; background: #fdf7ec; }
-.priority.urgent { color: var(--crit); border-color: #e6c3c0; background: #fdf3f2; }
+.priority.high { color: var(--warn); border-color: rgba(227,179,65,0.4); background: rgba(227,179,65,0.1); }
+.priority.urgent { color: var(--crit); border-color: rgba(248,81,73,0.4); background: rgba(248,81,73,0.1); }
 
 .board-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
 .board-tab {
@@ -268,8 +289,8 @@ fieldset legend { font-size: 12.5px; font-weight: 600; color: var(--muted); padd
 .note-head { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
 .note-head .author { font-weight: 600; color: var(--ink); }
 .note-tag { font-size: 11px; padding: 0 6px; border-radius: 3px; border: 1px solid var(--border); }
-.note-tag.internal { color: var(--warn); border-color: #e3c68a; }
-.note-tag.resolution { color: var(--ok); border-color: #b9d6c2; }
+.note-tag.internal { color: var(--warn); border-color: rgba(227,179,65,0.4); }
+.note-tag.resolution { color: var(--ok); border-color: rgba(63,185,80,0.4); }
 .note-body { white-space: pre-wrap; font-size: 13.5px; }
 
 .quick-form { padding: 14px; border-top: 1px solid var(--border-soft); display: grid; gap: 10px; }
