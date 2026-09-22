@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app import relations
 from app.db import get_db
 from app.models import Company, Configuration, Contact, User
 from app.security import current_user
@@ -133,6 +134,11 @@ def edit_configuration(
             "user": user, "configuration": config, "companies": companies,
             "contacts": contacts, "preselect": config.company_id,
             "config_types": CONFIG_TYPES, "statuses": STATUSES,
+            "related_items": relations.get_related(db, "configuration", config.id, config.company_id),
+            "pickable_items": relations.pickable_items(db, config.company_id),
+            "self_type": "configuration", "self_id": config.id,
+            "company": config.company,
+            "return_to": f"/configurations/{config.id}/edit",
         },
     )
 

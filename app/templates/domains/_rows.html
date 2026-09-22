@@ -1,0 +1,10 @@
+{% for d, company in rows %}
+<tr>
+  <td><a href="/domains/{{ d.id }}/edit">{{ d.domain_name }}</a></td>
+  <td><a href="/companies/{{ company.id }}">{{ company.name }}</a></td>
+  <td>{{ d.registrar or "—" }}</td>
+  <td>{{ d.expires_on.strftime("%b %-d, %Y") if d.expires_on else "—" }}</td>
+</tr>
+{% else %}
+<tr><td colspan="4" class="empty">No domains match that search.</td></tr>
+{% endfor %}

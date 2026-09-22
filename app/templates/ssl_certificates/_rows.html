@@ -1,0 +1,10 @@
+{% for cert, company in rows %}
+<tr>
+  <td><a href="/ssl-certificates/{{ cert.id }}/edit">{{ cert.common_name }}</a></td>
+  <td><a href="/companies/{{ company.id }}">{{ company.name }}</a></td>
+  <td>{{ cert.issued_by or "—" }}</td>
+  <td>{{ cert.expires_on.strftime("%b %-d, %Y") if cert.expires_on else "—" }}</td>
+</tr>
+{% else %}
+<tr><td colspan="4" class="empty">No SSL certificates match that search.</td></tr>
+{% endfor %}

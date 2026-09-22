@@ -558,7 +558,10 @@ class Credential(TimestampMixin, Base):
 
 class Domain(TimestampMixin, Base):
     """IT Glue's Domain Tracker. Structured (not free-text) because the
-    expiration date needs to be queryable for the "expiring soon" report."""
+    expiration date needs to be queryable for the "expiring soon" report.
+    created_on/updated_on/name_servers/status/raw_whois are filled by the
+    best-effort WHOIS lookup in app/integrations/lookups.py — every field
+    stays hand-editable regardless of where it came from."""
 
     __tablename__ = "domains"
 
@@ -570,7 +573,13 @@ class Domain(TimestampMixin, Base):
     registrar: Mapped[str | None] = mapped_column(String(120))
     dns_provider: Mapped[str | None] = mapped_column(String(120))
     expires_on: Mapped[date | None] = mapped_column(Date, index=True)
+    created_on: Mapped[date | None] = mapped_column(Date)
+    updated_on: Mapped[date | None] = mapped_column(Date)
+    name_servers: Mapped[str | None] = mapped_column(Text)
+    registry_status: Mapped[str | None] = mapped_column(Text)
     auto_renew: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    last_whois_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    raw_whois: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
 
     company: Mapped[Company] = relationship(back_populates="domains")
@@ -578,7 +587,9 @@ class Domain(TimestampMixin, Base):
 
 class SSLCertificate(TimestampMixin, Base):
     """IT Glue's SSL Certificate Tracker. Same reasoning as Domain — the
-    expiration date drives the report, so it's a real column, not prose."""
+    expiration date drives the report, so it's a real column, not prose.
+    Filled by a live TLS handshake in app/integrations/lookups.py when
+    possible; every field stays hand-editable."""
 
     __tablename__ = "ssl_certificates"
 
@@ -589,10 +600,45 @@ class SSLCertificate(TimestampMixin, Base):
     common_name: Mapped[str] = mapped_column(String(255), nullable=False)
     issued_by: Mapped[str | None] = mapped_column(String(120))
     installed_location: Mapped[str | None] = mapped_column(String(255))
+    issued_on: Mapped[date | None] = mapped_column(Date)
     expires_on: Mapped[date | None] = mapped_column(Date, index=True)
+    serial_number: Mapped[str | None] = mapped_column(String(120))
+    signature_algorithm: Mapped[str | None] = mapped_column(String(80))
+    subject_alt_names: Mapped[str | None] = mapped_column(Text)
+    fingerprint_sha256: Mapped[str | None] = mapped_column(String(80))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     notes: Mapped[str | None] = mapped_column(Text)
 
     company: Mapped[Company] = relationship(back_populates="ssl_certificates")
+
+
+class RelatedItem(Base):
+    """A generic link between two documentation-layer items — a config
+    tied to the credential that logs into it, a document tied to the site
+    it describes, and so on. Stored once per pair with a canonical
+    ordering (a is always the lexicographically smaller of the two
+    (type, id) pairs) so a link can't be saved twice in reversed order.
+
+    a_type / b_type are one of: configuration, credential, document,
+    location, domain, ssl_certificate.
+    """
+
+    __tablename__ = "related_items"
+    __table_args__ = (
+        UniqueConstraint("a_type", "a_id", "b_type", "b_id", name="uq_related_item_pair"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    a_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    a_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    b_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    b_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class SyncRun(Base):

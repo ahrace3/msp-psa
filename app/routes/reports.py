@@ -32,13 +32,15 @@ def reports_index(
     month_ago = today - timedelta(days=30)
     horizon = today + timedelta(days=EXPIRING_WITHIN_DAYS)
 
-    # Open tickets by board
+    # Open tickets by board. Grouped by id+name+sort_order together —
+    # Postgres rejects ORDER BY on a column that's outside both the SELECT
+    # list and the GROUP BY, and sort_order was neither.
     open_by_board = db.execute(
         select(Board.name, func.count(Ticket.id))
         .join(Ticket, Ticket.board_id == Board.id)
         .join(Status, Ticket.status_id == Status.id)
         .where(Status.is_closed.is_(False))
-        .group_by(Board.name)
+        .group_by(Board.id, Board.name, Board.sort_order)
         .order_by(Board.sort_order)
     ).all()
 

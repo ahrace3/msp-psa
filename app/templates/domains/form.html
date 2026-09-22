@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% set active = 'companies' %}
+{% set active = 'documentation' %}
 {% block title %}{{ "Edit domain" if domain else "Add domain" }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-head">
   <h1>{{ "Edit domain" if domain else "Add domain" }}</h1>
   <div class="sub">{{ company.name }}</div>
 </div>
+
+{% if error %}<div class="notice">{{ error }}</div>{% endif %}
+{% if domain and domain.last_whois_check_at %}
+<p class="sub" style="margin-bottom:14px">WHOIS last checked {{ domain.last_whois_check_at.strftime("%b %-d, %Y %-I:%M %p") }}.</p>
+{% endif %}
 
 <form method="post" action="{{ '/domains/' ~ domain.id ~ '/edit' if domain else '/domains/new' }}">
   <input type="hidden" name="company_id" value="{{ company.id }}">
@@ -14,6 +19,7 @@
       <div class="field full">
         <label for="domain_name">Domain name</label>
         <input id="domain_name" name="domain_name" type="text" required value="{{ domain.domain_name if domain else '' }}" placeholder="example.com">
+        {% if not domain %}<div class="sub" style="margin-top:4px">Leave the fields below blank and a WHOIS lookup will try to fill them in automatically when you save.</div>{% endif %}
       </div>
       <div class="field">
         <label for="registrar">Registrar</label>
@@ -30,10 +36,32 @@
       <div class="field" style="align-self:end">
         <label class="check"><input type="checkbox" name="auto_renew" {% if not domain or domain.auto_renew %}checked{% endif %}> Auto-renew enabled</label>
       </div>
+      <div class="field">
+        <label for="created_on">Registered on</label>
+        <input id="created_on" name="created_on" type="date" value="{{ domain.created_on.isoformat() if domain and domain.created_on else '' }}">
+      </div>
+      <div class="field">
+        <label for="updated_on">Last updated (registry)</label>
+        <input id="updated_on" name="updated_on" type="date" value="{{ domain.updated_on.isoformat() if domain and domain.updated_on else '' }}">
+      </div>
+      <div class="field full">
+        <label for="name_servers">Name servers</label>
+        <input id="name_servers" name="name_servers" type="text" value="{{ domain.name_servers if domain else '' }}">
+      </div>
+      <div class="field full">
+        <label for="registry_status">Registry status</label>
+        <input id="registry_status" name="registry_status" type="text" value="{{ domain.registry_status if domain else '' }}">
+      </div>
       <div class="field full">
         <label for="notes">Notes</label>
         <textarea id="notes" name="notes">{{ domain.notes if domain else '' }}</textarea>
       </div>
+      {% if domain and domain.raw_whois %}
+      <div class="field full">
+        <label>Raw WHOIS response</label>
+        <textarea readonly style="min-height:140px;font-family:'IBM Plex Mono',monospace;font-size:11.5px">{{ domain.raw_whois }}</textarea>
+      </div>
+      {% endif %}
     </div>
     <div class="form-actions">
       <button class="btn" type="submit">{{ "Save changes" if domain else "Add domain" }}</button>
@@ -41,4 +69,12 @@
     </div>
   </div>
 </form>
+
+{% if domain %}
+<form method="post" action="/domains/{{ domain.id }}/refresh-whois" style="margin:14px 0">
+  <button class="btn secondary" type="submit">Refresh from WHOIS</button>
+</form>
+
+{% include "documentation/_related_items.html" %}
+{% endif %}
 {% endblock %}

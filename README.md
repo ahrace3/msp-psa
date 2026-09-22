@@ -287,6 +287,76 @@ automatically on boot and create the new tables (`ticket_types`,
 `ticket_subtypes`, `ticket_items`, `domains`, `ssl_certificates`) and the
 new `ticket_notes` columns.
 
+## Phase Doc-1.1 — bug fixes, Documentation hub, lookups, relations
+
+Fixes and a real restructure, made because Doc-1 and Phase 1.1 had actually
+been deployed by this point — 0001 through 0003 are live, so this ships as
+a genuinely new migration (0004) rather than an edit to what's already run.
+
+**Two real bugs, both found from your screenshots:**
+- **Adding a credential 500'd.** Root cause: `CREDENTIAL_ENCRYPTION_KEY`
+  wasn't set in the `web` service's environment variables, so the encrypt
+  call threw and crashed the request. Now it catches that and shows a
+  plain-English message telling you exactly what's missing, instead of a
+  raw error page.
+- **Reports 500'd.** A `GROUP BY` bug in the "open tickets by board" query
+  — ordering by a column that wasn't in the grouped set, which Postgres
+  rejects outright. Fixed.
+- **Closed tickets were invisible on `/tickets`.** The board view had a
+  "Show closed tickets" toggle; the main ticket list never did. Added.
+
+**Documentation is now one nav item, not two.** `/documentation` is a hub
+page listing Passwords, Documents, Locations, Domains, and SSL Certificates
+— each with a real searchable list of its own (Locations, Domains, and SSL
+Certificates didn't have global list pages before; only Documents and
+Credentials did). Every "Add" button now works even when you haven't
+already drilled into a company — pick one from a short list first, then
+land on the real form.
+
+**Domain and SSL Certificate trackers do real lookups now:**
+- **Domains** — leave Registrar and Expires blank when adding one and a
+  WHOIS lookup tries to fill in registrar, creation/update/expiration
+  dates, name servers, and registry status. A **Refresh from WHOIS**
+  button on the edit page re-runs it any time. WHOIS is inherently flaky —
+  formats vary by TLD, some registrars redact fields, and servers
+  rate-limit — so every field stays hand-editable regardless of where it
+  came from, and a failed lookup never blocks saving the record.
+- **SSL Certificates** — leave Issued By and Expires blank and a live TLS
+  handshake against the domain fills in issuer, issued/expiry dates,
+  serial number, signature algorithm, subject alternative names, and a
+  SHA-256 fingerprint. Same **Refresh** pattern.
+- Neither of these could be tested against a real WHOIS server or a real
+  certificate from the sandbox this was built in — the code paths are
+  exercised and the libraries confirmed working, but the first real lookup
+  on your actual server is the real test. Try one on a domain you know the
+  answer for and confirm it looks right.
+
+**Related items.** Configurations, Credentials, Documents, Locations,
+Domains, and SSL Certificates can now be linked to each other — a device
+to the password that logs into it, a document to the site it describes,
+whatever. Shows up as a "Related items" panel on each one's edit page with
+a simple "link to..." picker and a Remove button per link.
+
+### Deploying this update
+
+```sh
+docker pull ghcr.io/ahrace3/msp-psa:latest
+```
+
+Recreate the `psa` application in Container Station — migrations run
+automatically and only add columns/tables (`related_items`, plus new
+columns on `domains` and `ssl_certificates`); nothing existing is touched.
+
+**If Credentials was still 500ing before this update, that's your
+`CREDENTIAL_ENCRYPTION_KEY`.** Generate one if you haven't:
+
+```powershell
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Add it to the **`web`** service's environment variables in Container
+Station (worker doesn't need it) and recreate.
+
 ## Roadmap
 
 - ~~**Phase 1** — tickets, boards, statuses, time entries, inbound email via Graph~~ done

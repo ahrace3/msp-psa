@@ -1,0 +1,10 @@
+{% for loc, company in rows %}
+<tr>
+  <td><a href="/locations/{{ loc.id }}/edit">{{ loc.name }}</a>{% if loc.is_primary %} <span class="flag">primary</span>{% endif %}</td>
+  <td><a href="/companies/{{ company.id }}">{{ company.name }}</a></td>
+  <td>{{ loc.city or "—" }}</td>
+  <td>{{ loc.phone or "—" }}</td>
+</tr>
+{% else %}
+<tr><td colspan="4" class="empty">No locations match that search.</td></tr>
+{% endfor %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% set active = 'documentation' %}
+{% block title %}SSL Certificates · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>SSL Certificates</h1>
+  <a class="btn" href="/ssl-certificates/new">Add certificate</a>
+</div>
+<div class="search">
+  <input type="text" name="q" value="{{ q }}" placeholder="Search common name, issuer or company"
+         hx-get="/ssl-certificates" hx-trigger="keyup changed delay:250ms"
+         hx-target="#rows" hx-swap="innerHTML" aria-label="Search SSL certificates">
+</div>
+<div class="panel">
+  <table>
+    <thead><tr><th>Common name</th><th>Company</th><th>Issued by</th><th>Expires</th></tr></thead>
+    <tbody id="rows">{% include "ssl_certificates/_rows.html" %}</tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% set active = 'documentation' %}
+{% block title %}Documentation · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Documentation</h1></div>
+
+<div class="panel">
+  <table>
+    <thead><tr><th>Section</th><th class="num">Count</th><th></th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="/credentials">Passwords / Credentials</a></td>
+        <td class="num">{{ counts.credentials }}</td>
+        <td><a href="/credentials/new">Add</a></td>
+      </tr>
+      <tr>
+        <td><a href="/documents">Documents</a></td>
+        <td class="num">{{ counts.documents }}</td>
+        <td><a href="/documents/new">Add</a></td>
+      </tr>
+      <tr>
+        <td><a href="/locations">Locations</a></td>
+        <td class="num">{{ counts.locations }}</td>
+        <td><a href="/locations/new">Add</a></td>
+      </tr>
+      <tr>
+        <td><a href="/domains">Domains</a></td>
+        <td class="num">{{ counts.domains }}</td>
+        <td><a href="/domains/new">Add</a></td>
+      </tr>
+      <tr>
+        <td><a href="/ssl-certificates">SSL Certificates</a></td>
+        <td class="num">{{ counts.ssl_certificates }}</td>
+        <td><a href="/ssl-certificates/new">Add</a></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+<p class="sub" style="margin-top:14px">Each section is searchable across every company. Passwords are encrypted at rest and only decrypted when you click Show.</p>
+{% endblock %}

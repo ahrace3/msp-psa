@@ -1,15 +1,16 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from app import crypto
+from app import crypto, relations
 from app.db import get_db
+from app.integrations import lookups
 from app.models import (
     Company, Configuration, Contact, Credential, Document, Domain, Location,
-    SSLCertificate, User,
+    RelatedItem, SSLCertificate, User,
 )
 from app.security import current_user
 from app.templating import templates
@@ -28,22 +29,80 @@ CREDENTIAL_CATEGORIES = [
 
 
 def _company_or_redirect(db: Session, company_id: int):
+    return db.get(Company, company_id)
+
+
+def _company_picker_or_target(db: Session, request: Request, user: User, company_id: int | None, target_path: str, title: str):
+    """Shared "add without a company preselected" flow. Returns
+    (company, response): if company_id is missing, response is the
+    company-picker page and company is None — the caller returns response
+    immediately. Otherwise company is set and response is None."""
+    if company_id is None:
+        companies = db.scalars(select(Company).order_by(Company.name)).all()
+        return None, templates.TemplateResponse(
+            request, "documentation/pick_company.html",
+            {"user": user, "title": title, "target_path": target_path, "companies": companies},
+        )
     company = db.get(Company, company_id)
-    return company
+    if not company:
+        return None, RedirectResponse("/companies", status_code=303)
+    return company, None
+
+
+# ------------------------------------------------------------ documentation
+
+@router.get("/documentation", response_class=HTMLResponse)
+def documentation_index(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    counts = {
+        "credentials": db.scalar(select(func.count(Credential.id))) or 0,
+        "documents": db.scalar(select(func.count(Document.id))) or 0,
+        "locations": db.scalar(select(func.count(Location.id))) or 0,
+        "domains": db.scalar(select(func.count(Domain.id))) or 0,
+        "ssl_certificates": db.scalar(select(func.count(SSLCertificate.id))) or 0,
+    }
+    return templates.TemplateResponse(
+        request, "documentation/index.html", {"user": user, "counts": counts}
+    )
 
 
 # -------------------------------------------------------------- locations --
 
-@router.get("/locations/new", response_class=HTMLResponse)
-def new_location(
+@router.get("/locations", response_class=HTMLResponse)
+def list_locations(
     request: Request,
-    company_id: int,
+    q: str = "",
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company = _company_or_redirect(db, company_id)
-    if not company:
-        return RedirectResponse("/companies", status_code=303)
+    stmt = select(Location, Company).join(Company, Location.company_id == Company.id)
+    if q:
+        term = f"%{q.lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Location.name).like(term),
+                func.lower(Location.city).like(term),
+                func.lower(Company.name).like(term),
+            )
+        )
+    rows = db.execute(stmt.order_by(Company.name, Location.name)).all()
+    template = "locations/_rows.html" if request.headers.get("HX-Request") else "locations/list.html"
+    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
+
+
+@router.get("/locations/new", response_class=HTMLResponse)
+def new_location(
+    request: Request,
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    company, resp = _company_picker_or_target(db, request, user, company_id, "/locations/new", "Add location")
+    if resp:
+        return resp
     return templates.TemplateResponse(
         request, "locations/form.html",
         {"user": user, "company": company, "location": None},
@@ -85,7 +144,13 @@ def edit_location(
     loc = db.get(Location, location_id)
     return templates.TemplateResponse(
         request, "locations/form.html",
-        {"user": user, "company": loc.company, "location": loc},
+        {
+            "user": user, "company": loc.company, "location": loc,
+            "related_items": relations.get_related(db, "location", loc.id, loc.company_id),
+            "pickable_items": relations.pickable_items(db, loc.company_id),
+            "self_type": "location", "self_id": loc.id,
+            "return_to": f"/locations/{loc.id}/edit",
+        },
     )
 
 
@@ -136,13 +201,13 @@ def list_documents(
 @router.get("/documents/new", response_class=HTMLResponse)
 def new_document(
     request: Request,
-    company_id: int,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company = _company_or_redirect(db, company_id)
-    if not company:
-        return RedirectResponse("/companies", status_code=303)
+    company, resp = _company_picker_or_target(db, request, user, company_id, "/documents/new", "Add document")
+    if resp:
+        return resp
     return templates.TemplateResponse(
         request, "documents/form.html",
         {"user": user, "company": company, "document": None, "categories": DOCUMENT_CATEGORIES},
@@ -182,7 +247,14 @@ def view_document(
     if not doc:
         return RedirectResponse("/documents", status_code=303)
     return templates.TemplateResponse(
-        request, "documents/detail.html", {"user": user, "document": doc}
+        request, "documents/detail.html",
+        {
+            "user": user, "document": doc, "company": doc.company,
+            "related_items": relations.get_related(db, "document", doc.id, doc.company_id),
+            "pickable_items": relations.pickable_items(db, doc.company_id),
+            "self_type": "document", "self_id": doc.id,
+            "return_to": f"/documents/{doc.id}",
+        },
     )
 
 
@@ -220,15 +292,6 @@ async def update_document(
 
 # ------------------------------------------------------------- credentials --
 
-def _masked(cred: Credential) -> dict:
-    return {
-        "id": cred.id, "name": cred.name, "category": cred.category,
-        "username": cred.username, "url": cred.url, "notes": cred.notes,
-        "company": cred.company, "location": cred.location,
-        "configuration": cred.configuration, "contact": cred.contact,
-    }
-
-
 @router.get("/credentials", response_class=HTMLResponse)
 def list_credentials(
     request: Request,
@@ -256,24 +319,32 @@ def list_credentials(
 @router.get("/credentials/new", response_class=HTMLResponse)
 def new_credential(
     request: Request,
-    company_id: int,
+    company_id: int | None = None,
     error: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company = _company_or_redirect(db, company_id)
-    if not company:
-        return RedirectResponse("/companies", status_code=303)
-    locations = db.scalars(select(Location).where(Location.company_id == company_id)).all()
-    configs = db.scalars(select(Configuration).where(Configuration.company_id == company_id)).all()
-    contacts = db.scalars(select(Contact).where(Contact.company_id == company_id)).all()
+    company, resp = _company_picker_or_target(db, request, user, company_id, "/credentials/new", "Add credential")
+    if resp:
+        return resp
+    locations = db.scalars(select(Location).where(Location.company_id == company.id)).all()
+    configs = db.scalars(select(Configuration).where(Configuration.company_id == company.id)).all()
+    contacts = db.scalars(select(Contact).where(Contact.company_id == company.id)).all()
+    error_messages = {
+        "missing_secret": "A password or secret value is required.",
+        "no_encryption_key": (
+            "Credentials can't be saved yet — CREDENTIAL_ENCRYPTION_KEY isn't set on the "
+            "server. Generate one and add it to the web service's environment variables, "
+            "then try again."
+        ),
+    }
     return templates.TemplateResponse(
         request, "credentials/form.html",
         {
             "user": user, "company": company, "credential": None,
             "locations": locations, "configurations": configs, "contacts": contacts,
             "categories": CREDENTIAL_CATEGORIES,
-            "error": "A password or secret value is required." if error == "missing_secret" else None,
+            "error": error_messages.get(error),
         },
     )
 
@@ -293,6 +364,13 @@ async def create_credential(
             f"/credentials/new?company_id={company_id}&error=missing_secret", status_code=303
         )
 
+    try:
+        secret_encrypted = crypto.encrypt_secret(secret)
+    except crypto.EncryptionNotConfigured:
+        return RedirectResponse(
+            f"/credentials/new?company_id={company_id}&error=no_encryption_key", status_code=303
+        )
+
     def _fk(field: str) -> int | None:
         val = form.get(field)
         return int(val) if val else None
@@ -305,7 +383,7 @@ async def create_credential(
         name=(form.get("name") or "").strip() or "Untitled credential",
         category=(form.get("category") or "").strip() or None,
         username=(form.get("username") or "").strip() or None,
-        secret_encrypted=crypto.encrypt_secret(secret),
+        secret_encrypted=secret_encrypted,
         url=(form.get("url") or "").strip() or None,
         notes=(form.get("notes") or "").strip() or None,
     )
@@ -318,6 +396,7 @@ async def create_credential(
 def edit_credential(
     credential_id: int,
     request: Request,
+    error: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
@@ -325,12 +404,22 @@ def edit_credential(
     locations = db.scalars(select(Location).where(Location.company_id == cred.company_id)).all()
     configs = db.scalars(select(Configuration).where(Configuration.company_id == cred.company_id)).all()
     contacts = db.scalars(select(Contact).where(Contact.company_id == cred.company_id)).all()
+    error_messages = {
+        "no_encryption_key": (
+            "The new password wasn't saved — CREDENTIAL_ENCRYPTION_KEY isn't set on the "
+            "server. Everything else on this credential was updated."
+        ),
+    }
     return templates.TemplateResponse(
         request, "credentials/form.html",
         {
             "user": user, "company": cred.company, "credential": cred,
             "locations": locations, "configurations": configs, "contacts": contacts,
-            "categories": CREDENTIAL_CATEGORIES, "error": None,
+            "categories": CREDENTIAL_CATEGORIES, "error": error_messages.get(error),
+            "related_items": relations.get_related(db, "credential", cred.id, cred.company_id),
+            "pickable_items": relations.pickable_items(db, cred.company_id),
+            "self_type": "credential", "self_id": cred.id,
+            "return_to": f"/credentials/{cred.id}/edit",
         },
     )
 
@@ -359,10 +448,16 @@ async def update_credential(
     cred.contact_id = _fk("contact_id")
 
     new_secret = form.get("secret")
+    key_error = False
     if new_secret:  # blank means "leave the stored secret unchanged"
-        cred.secret_encrypted = crypto.encrypt_secret(new_secret)
+        try:
+            cred.secret_encrypted = crypto.encrypt_secret(new_secret)
+        except crypto.EncryptionNotConfigured:
+            key_error = True
 
     db.commit()
+    if key_error:
+        return RedirectResponse(f"/credentials/{credential_id}/edit?error=no_encryption_key", status_code=303)
     return RedirectResponse(f"/companies/{cred.company_id}#credentials", status_code=303)
 
 
@@ -391,18 +486,60 @@ def _parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
 
-@router.get("/domains/new", response_class=HTMLResponse)
-def new_domain(
+def _apply_whois(domain: Domain, result: dict, overwrite: bool) -> None:
+    """overwrite=False (create flow): only fill fields the user left blank.
+    overwrite=True (explicit refresh): always take the fresh values."""
+    def set_if(attr, value):
+        if value is None:
+            return
+        if overwrite or not getattr(domain, attr):
+            setattr(domain, attr, value)
+
+    set_if("registrar", result["registrar"])
+    set_if("expires_on", result["expires_on"])
+    set_if("created_on", result["created_on"])
+    set_if("updated_on", result["updated_on"])
+    set_if("name_servers", result["name_servers"])
+    set_if("registry_status", result["status"])
+    if result["raw"]:
+        domain.raw_whois = result["raw"]
+    domain.last_whois_check_at = datetime.now(timezone.utc)
+
+
+@router.get("/domains", response_class=HTMLResponse)
+def list_domains(
     request: Request,
-    company_id: int,
+    q: str = "",
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company = _company_or_redirect(db, company_id)
-    if not company:
-        return RedirectResponse("/companies", status_code=303)
+    stmt = select(Domain, Company).join(Company, Domain.company_id == Company.id)
+    if q:
+        term = f"%{q.lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Domain.domain_name).like(term),
+                func.lower(Domain.registrar).like(term),
+                func.lower(Company.name).like(term),
+            )
+        )
+    rows = db.execute(stmt.order_by(Company.name, Domain.domain_name)).all()
+    template = "domains/_rows.html" if request.headers.get("HX-Request") else "domains/list.html"
+    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
+
+
+@router.get("/domains/new", response_class=HTMLResponse)
+def new_domain(
+    request: Request,
+    company_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    company, resp = _company_picker_or_target(db, request, user, company_id, "/domains/new", "Add domain")
+    if resp:
+        return resp
     return templates.TemplateResponse(
-        request, "domains/form.html", {"user": user, "company": company, "domain": None}
+        request, "domains/form.html", {"user": user, "company": company, "domain": None, "error": None}
     )
 
 
@@ -414,15 +551,26 @@ async def create_domain(
 ):
     form = await request.form()
     company_id = int(form["company_id"])
+    domain_name = (form.get("domain_name") or "").strip()
     domain = Domain(
         company_id=company_id,
-        domain_name=(form.get("domain_name") or "").strip(),
+        domain_name=domain_name,
         registrar=(form.get("registrar") or "").strip() or None,
         dns_provider=(form.get("dns_provider") or "").strip() or None,
         expires_on=_parse_date(form.get("expires_on")),
+        created_on=_parse_date(form.get("created_on")),
+        updated_on=_parse_date(form.get("updated_on")),
+        name_servers=(form.get("name_servers") or "").strip() or None,
+        registry_status=(form.get("registry_status") or "").strip() or None,
         auto_renew=form.get("auto_renew") == "on",
         notes=(form.get("notes") or "").strip() or None,
     )
+    # Best-effort auto-fill: only runs when the user left the key fields
+    # blank, and a failure here never blocks saving the record.
+    if domain_name and not domain.expires_on and not domain.registrar:
+        result = lookups.whois_lookup(domain_name)
+        if not result["error"]:
+            _apply_whois(domain, result, overwrite=False)
     db.add(domain)
     db.commit()
     return RedirectResponse(f"/companies/{company_id}#domains", status_code=303)
@@ -437,7 +585,14 @@ def edit_domain(
 ):
     domain = db.get(Domain, domain_id)
     return templates.TemplateResponse(
-        request, "domains/form.html", {"user": user, "company": domain.company, "domain": domain}
+        request, "domains/form.html",
+        {
+            "user": user, "company": domain.company, "domain": domain, "error": None,
+            "related_items": relations.get_related(db, "domain", domain.id, domain.company_id),
+            "pickable_items": relations.pickable_items(db, domain.company_id),
+            "self_type": "domain", "self_id": domain.id,
+            "return_to": f"/domains/{domain.id}/edit",
+        },
     )
 
 
@@ -454,26 +609,86 @@ async def update_domain(
     domain.registrar = (form.get("registrar") or "").strip() or None
     domain.dns_provider = (form.get("dns_provider") or "").strip() or None
     domain.expires_on = _parse_date(form.get("expires_on"))
+    domain.created_on = _parse_date(form.get("created_on"))
+    domain.updated_on = _parse_date(form.get("updated_on"))
+    domain.name_servers = (form.get("name_servers") or "").strip() or None
+    domain.registry_status = (form.get("registry_status") or "").strip() or None
     domain.auto_renew = form.get("auto_renew") == "on"
     domain.notes = (form.get("notes") or "").strip() or None
     db.commit()
     return RedirectResponse(f"/companies/{domain.company_id}#domains", status_code=303)
 
 
+@router.post("/domains/{domain_id}/refresh-whois")
+def refresh_domain_whois(
+    domain_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    domain = db.get(Domain, domain_id)
+    result = lookups.whois_lookup(domain.domain_name)
+    if result["error"]:
+        domain.last_whois_check_at = datetime.now(timezone.utc)
+        db.commit()
+    else:
+        _apply_whois(domain, result, overwrite=True)
+        db.commit()
+    return RedirectResponse(f"/domains/{domain_id}/edit", status_code=303)
+
+
 # ------------------------------------------------------------ certificates
+
+def _apply_ssl(cert: SSLCertificate, result: dict, overwrite: bool) -> None:
+    def set_if(attr, value):
+        if value is None:
+            return
+        if overwrite or not getattr(cert, attr):
+            setattr(cert, attr, value)
+
+    set_if("issued_by", result["issued_by"])
+    set_if("issued_on", result["issued_on"])
+    set_if("expires_on", result["expires_on"])
+    set_if("serial_number", result["serial_number"])
+    set_if("signature_algorithm", result["signature_algorithm"])
+    set_if("subject_alt_names", result["subject_alt_names"])
+    set_if("fingerprint_sha256", result["fingerprint_sha256"])
+    cert.last_checked_at = datetime.now(timezone.utc)
+
+
+@router.get("/ssl-certificates", response_class=HTMLResponse)
+def list_ssl_certificates(
+    request: Request,
+    q: str = "",
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    stmt = select(SSLCertificate, Company).join(Company, SSLCertificate.company_id == Company.id)
+    if q:
+        term = f"%{q.lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(SSLCertificate.common_name).like(term),
+                func.lower(SSLCertificate.issued_by).like(term),
+                func.lower(Company.name).like(term),
+            )
+        )
+    rows = db.execute(stmt.order_by(Company.name, SSLCertificate.common_name)).all()
+    template = "ssl_certificates/_rows.html" if request.headers.get("HX-Request") else "ssl_certificates/list.html"
+    return templates.TemplateResponse(request, template, {"user": user, "rows": rows, "q": q})
+
 
 @router.get("/ssl-certificates/new", response_class=HTMLResponse)
 def new_ssl_certificate(
     request: Request,
-    company_id: int,
+    company_id: int | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    company = _company_or_redirect(db, company_id)
-    if not company:
-        return RedirectResponse("/companies", status_code=303)
+    company, resp = _company_picker_or_target(db, request, user, company_id, "/ssl-certificates/new", "Add SSL certificate")
+    if resp:
+        return resp
     return templates.TemplateResponse(
-        request, "ssl_certificates/form.html", {"user": user, "company": company, "cert": None}
+        request, "ssl_certificates/form.html", {"user": user, "company": company, "cert": None, "error": None}
     )
 
 
@@ -485,14 +700,23 @@ async def create_ssl_certificate(
 ):
     form = await request.form()
     company_id = int(form["company_id"])
+    common_name = (form.get("common_name") or "").strip()
     cert = SSLCertificate(
         company_id=company_id,
-        common_name=(form.get("common_name") or "").strip(),
+        common_name=common_name,
         issued_by=(form.get("issued_by") or "").strip() or None,
         installed_location=(form.get("installed_location") or "").strip() or None,
+        issued_on=_parse_date(form.get("issued_on")),
         expires_on=_parse_date(form.get("expires_on")),
+        serial_number=(form.get("serial_number") or "").strip() or None,
+        signature_algorithm=(form.get("signature_algorithm") or "").strip() or None,
+        subject_alt_names=(form.get("subject_alt_names") or "").strip() or None,
         notes=(form.get("notes") or "").strip() or None,
     )
+    if common_name and not cert.expires_on and not cert.issued_by:
+        result = lookups.ssl_lookup(common_name)
+        if not result["error"]:
+            _apply_ssl(cert, result, overwrite=False)
     db.add(cert)
     db.commit()
     return RedirectResponse(f"/companies/{company_id}#ssl-certificates", status_code=303)
@@ -507,7 +731,14 @@ def edit_ssl_certificate(
 ):
     cert = db.get(SSLCertificate, cert_id)
     return templates.TemplateResponse(
-        request, "ssl_certificates/form.html", {"user": user, "company": cert.company, "cert": cert}
+        request, "ssl_certificates/form.html",
+        {
+            "user": user, "company": cert.company, "cert": cert, "error": None,
+            "related_items": relations.get_related(db, "ssl_certificate", cert.id, cert.company_id),
+            "pickable_items": relations.pickable_items(db, cert.company_id),
+            "self_type": "ssl_certificate", "self_id": cert.id,
+            "return_to": f"/ssl-certificates/{cert.id}/edit",
+        },
     )
 
 
@@ -523,7 +754,61 @@ async def update_ssl_certificate(
     cert.common_name = (form.get("common_name") or "").strip() or cert.common_name
     cert.issued_by = (form.get("issued_by") or "").strip() or None
     cert.installed_location = (form.get("installed_location") or "").strip() or None
+    cert.issued_on = _parse_date(form.get("issued_on"))
     cert.expires_on = _parse_date(form.get("expires_on"))
+    cert.serial_number = (form.get("serial_number") or "").strip() or None
+    cert.signature_algorithm = (form.get("signature_algorithm") or "").strip() or None
+    cert.subject_alt_names = (form.get("subject_alt_names") or "").strip() or None
     cert.notes = (form.get("notes") or "").strip() or None
     db.commit()
     return RedirectResponse(f"/companies/{cert.company_id}#ssl-certificates", status_code=303)
+
+
+@router.post("/ssl-certificates/{cert_id}/refresh")
+def refresh_ssl_certificate(
+    cert_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    cert = db.get(SSLCertificate, cert_id)
+    result = lookups.ssl_lookup(cert.common_name)
+    if result["error"]:
+        cert.last_checked_at = datetime.now(timezone.utc)
+        db.commit()
+    else:
+        _apply_ssl(cert, result, overwrite=True)
+        db.commit()
+    return RedirectResponse(f"/ssl-certificates/{cert_id}/edit", status_code=303)
+
+
+# ------------------------------------------------------------------ relations
+
+@router.post("/relations/link")
+async def create_relation(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    form = await request.form()
+    company_id = int(form["company_id"])
+    self_type = form["self_type"]
+    self_id = int(form["self_id"])
+    return_to = form.get("return_to") or f"/companies/{company_id}"
+    target = form.get("target") or ""
+    if ":" in target:
+        target_type, target_id = target.split(":", 1)
+        relations.link(db, company_id, self_type, self_id, target_type, int(target_id))
+    return RedirectResponse(return_to, status_code=303)
+
+
+@router.post("/relations/{relation_id}/unlink")
+async def delete_relation(
+    relation_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    form = await request.form()
+    return_to = form.get("return_to") or "/companies"
+    relations.unlink(db, relation_id)
+    return RedirectResponse(return_to, status_code=303)

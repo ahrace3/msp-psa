@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set active = 'companies' %}
+{% set active = 'documentation' %}
 {% block title %}{{ "Edit SSL certificate" if cert else "Add SSL certificate" }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -7,17 +7,27 @@
   <div class="sub">{{ company.name }}</div>
 </div>
 
+{% if error %}<div class="notice">{{ error }}</div>{% endif %}
+{% if cert and cert.last_checked_at %}
+<p class="sub" style="margin-bottom:14px">Certificate last checked {{ cert.last_checked_at.strftime("%b %-d, %Y %-I:%M %p") }}.</p>
+{% endif %}
+
 <form method="post" action="{{ '/ssl-certificates/' ~ cert.id ~ '/edit' if cert else '/ssl-certificates/new' }}">
   <input type="hidden" name="company_id" value="{{ company.id }}">
   <div class="panel">
     <div class="form-grid">
       <div class="field full">
         <label for="common_name">Common name</label>
-        <input id="common_name" name="common_name" type="text" required value="{{ cert.common_name if cert else '' }}" placeholder="*.example.com">
+        <input id="common_name" name="common_name" type="text" required value="{{ cert.common_name if cert else '' }}" placeholder="example.com or *.example.com">
+        {% if not cert %}<div class="sub" style="margin-top:4px">Leave the fields below blank and a live TLS check will try to fill them in automatically when you save.</div>{% endif %}
       </div>
       <div class="field">
         <label for="issued_by">Issued by</label>
         <input id="issued_by" name="issued_by" type="text" value="{{ cert.issued_by if cert else '' }}" placeholder="Let's Encrypt, DigiCert, etc.">
+      </div>
+      <div class="field">
+        <label for="issued_on">Issued on</label>
+        <input id="issued_on" name="issued_on" type="date" value="{{ cert.issued_on.isoformat() if cert and cert.issued_on else '' }}">
       </div>
       <div class="field">
         <label for="expires_on">Expires</label>
@@ -26,6 +36,22 @@
       <div class="field full">
         <label for="installed_location">Installed on</label>
         <input id="installed_location" name="installed_location" type="text" value="{{ cert.installed_location if cert else '' }}" placeholder="Firewall, web server, etc.">
+      </div>
+      <div class="field">
+        <label for="serial_number">Serial number</label>
+        <input id="serial_number" name="serial_number" type="text" value="{{ cert.serial_number if cert else '' }}" class="mono">
+      </div>
+      <div class="field">
+        <label for="signature_algorithm">Signature algorithm</label>
+        <input id="signature_algorithm" name="signature_algorithm" type="text" value="{{ cert.signature_algorithm if cert else '' }}">
+      </div>
+      <div class="field full">
+        <label for="subject_alt_names">Subject alternative names</label>
+        <input id="subject_alt_names" name="subject_alt_names" type="text" value="{{ cert.subject_alt_names if cert else '' }}">
+      </div>
+      <div class="field full">
+        <label for="fingerprint_sha256">SHA-256 fingerprint</label>
+        <input id="fingerprint_sha256" name="fingerprint_sha256" type="text" value="{{ cert.fingerprint_sha256 if cert else '' }}" class="mono">
       </div>
       <div class="field full">
         <label for="notes">Notes</label>
@@ -38,4 +64,12 @@
     </div>
   </div>
 </form>
+
+{% if cert %}
+<form method="post" action="/ssl-certificates/{{ cert.id }}/refresh" style="margin:14px 0">
+  <button class="btn secondary" type="submit">Refresh from certificate</button>
+</form>
+
+{% include "documentation/_related_items.html" %}
+{% endif %}
 {% endblock %}

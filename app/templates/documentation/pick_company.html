@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% set active = 'documentation' %}
+{% block title %}{{ title }} · {{ app_name }}{% endblock %}
+{% block content %}
+<div class="page-head"><h1>{{ title }}</h1></div>
+<div class="panel" style="padding:16px;max-width:420px">
+  <div class="field">
+    <label for="company_picker">Which company is this for?</label>
+    <select id="company_picker" onchange="if(this.value) location = '{{ target_path }}?company_id=' + this.value">
+      <option value="">Select a company</option>
+      {% for c in companies %}
+      <option value="{{ c.id }}">{{ c.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</div>
+{% endblock %}

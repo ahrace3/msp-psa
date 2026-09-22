@@ -1,0 +1,42 @@
+<div class="panel" id="related-items">
+  <div class="panel-head"><h2>Related items</h2></div>
+  {% if related_items %}
+  <table>
+    <thead><tr><th>Type</th><th>Item</th><th></th></tr></thead>
+    <tbody>
+      {% for r in related_items %}
+      <tr>
+        <td>{{ r.type_label }}</td>
+        <td>{% if r.url %}<a href="{{ r.url }}">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}</td>
+        <td>
+          <form method="post" action="/relations/{{ r.relation_id }}/unlink" style="display:inline">
+            <input type="hidden" name="return_to" value="{{ return_to }}">
+            <button type="submit" class="btn secondary" style="padding:2px 9px;font-size:12px">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>Nothing linked yet — connect this to the password, document, device or site it goes with.</p></div>
+  {% endif %}
+
+  <form class="quick-form" method="post" action="/relations/link">
+    <input type="hidden" name="company_id" value="{{ company.id }}">
+    <input type="hidden" name="self_type" value="{{ self_type }}">
+    <input type="hidden" name="self_id" value="{{ self_id }}">
+    <input type="hidden" name="return_to" value="{{ return_to }}">
+    <div class="row">
+      <select name="target" style="max-width:380px">
+        <option value="">Link to...</option>
+        {% for item in pickable_items %}
+        {% if not (item.type == self_type and item.id == self_id) %}
+        <option value="{{ item.type }}:{{ item.id }}">{{ item.label }}</option>
+        {% endif %}
+        {% endfor %}
+      </select>
+      <button class="btn secondary" type="submit">Link</button>
+    </div>
+  </form>
+</div>

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set active = 'companies' %}
+{% set active = 'documentation' %}
 {% block title %}{{ "Edit location" if location else "Add location" }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -53,4 +53,8 @@
     </div>
   </div>
 </form>
+
+{% if location %}
+{% include "documentation/_related_items.html" %}
+{% endif %}
 {% endblock %}

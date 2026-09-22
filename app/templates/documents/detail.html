@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% set active = 'documents' %}
+{% set active = 'documentation' %}
 {% block title %}{{ document.title }} · {{ app_name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -18,4 +18,6 @@
 <div class="panel">
   <div style="padding:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6">{{ document.body }}</div>
 </div>
+
+{% include "documentation/_related_items.html" %}
 {% endblock %}
