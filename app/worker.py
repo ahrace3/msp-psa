@@ -17,7 +17,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.db import SessionLocal
 from app.integrations import graph
-from app.models import Company, Contact, EmailMessage, Status, Ticket, TicketNote
+from app.models import Company, Contact, EmailMessage, Job, Status, Ticket, TicketNote
 from app.queue import claim_next, complete, enqueue, fail
 from app.ticketing import board_by_slug, create_ticket, default_status_for_board
 
