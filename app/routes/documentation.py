@@ -1,7 +1,10 @@
 from datetime import date, datetime, timezone
+import os
+import pathlib
+import uuid
 
-from fastapi import APIRouter, Depends, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Depends, File, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -9,8 +12,8 @@ from app import crypto, relations
 from app.db import get_db
 from app.integrations import lookups
 from app.models import (
-    Company, Configuration, Contact, Credential, Document, Domain, Location,
-    RelatedItem, SSLCertificate, User,
+    Company, Configuration, Contact, Credential, Document, DocumentAttachment,
+    Domain, Location, RelatedItem, SSLCertificate, User,
 )
 from app.security import current_user
 from app.templating import templates
@@ -160,6 +163,7 @@ async def create_document(
         title=(form.get("title") or "").strip() or "Untitled",
         category=(form.get("category") or "").strip() or None,
         body=form.get("body") or "",
+        embed_code=(form.get("embed_code") or "").strip() or None,
         is_pinned=form.get("is_pinned") == "on",
         created_by_id=user.id,
         updated_by_id=user.id,
@@ -178,7 +182,7 @@ def view_document(
 ):
     doc = db.get(Document, document_id)
     if not doc:
-        return RedirectResponse("/documents", status_code=303)
+        return RedirectResponse("/companies", status_code=303)
     return templates.TemplateResponse(
         request, "documents/detail.html",
         {
@@ -217,10 +221,96 @@ async def update_document(
     doc.title = (form.get("title") or "").strip() or doc.title
     doc.category = (form.get("category") or "").strip() or None
     doc.body = form.get("body") or ""
+    doc.embed_code = (form.get("embed_code") or "").strip() or None
     doc.is_pinned = form.get("is_pinned") == "on"
     doc.updated_by_id = user.id
     db.commit()
     return RedirectResponse(f"/documents/{doc.id}", status_code=303)
+
+
+# ---------------------------------------------------------- attachments --
+
+ATTACHMENTS_ROOT = pathlib.Path(
+    os.environ.get("ATTACHMENTS_DIR", "/attachments")
+)
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+def _attachment_dir(company_id: int, document_id: int) -> pathlib.Path:
+    p = ATTACHMENTS_ROOT / str(company_id) / str(document_id)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+@router.post("/documents/{document_id}/attachments/upload")
+async def upload_attachment(
+    document_id: int,
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    doc = db.get(Document, document_id)
+    if not doc:
+        return RedirectResponse("/companies", status_code=303)
+
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        return RedirectResponse(f"/documents/{document_id}#attachments", status_code=303)
+
+    ext = pathlib.Path(file.filename or "file").suffix
+    stored = f"{uuid.uuid4().hex}{ext}"
+    dest = _attachment_dir(doc.company_id, document_id) / stored
+    dest.write_bytes(data)
+
+    att = DocumentAttachment(
+        document_id=document_id,
+        company_id=doc.company_id,
+        filename=file.filename or stored,
+        stored_filename=stored,
+        content_type=file.content_type,
+        size_bytes=len(data),
+    )
+    db.add(att)
+    db.commit()
+    return RedirectResponse(f"/documents/{document_id}#attachments", status_code=303)
+
+
+@router.get("/documents/{document_id}/attachments/{attachment_id}/download")
+def download_attachment(
+    document_id: int,
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    att = db.get(DocumentAttachment, attachment_id)
+    if not att or att.document_id != document_id:
+        return RedirectResponse(f"/documents/{document_id}", status_code=303)
+    path = _attachment_dir(att.company_id, document_id) / att.stored_filename
+    if not path.exists():
+        return RedirectResponse(f"/documents/{document_id}", status_code=303)
+    return FileResponse(
+        path=str(path),
+        filename=att.filename,
+        media_type=att.content_type or "application/octet-stream",
+    )
+
+
+@router.post("/documents/{document_id}/attachments/{attachment_id}/delete")
+def delete_attachment(
+    document_id: int,
+    attachment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    att = db.get(DocumentAttachment, attachment_id)
+    if att and att.document_id == document_id:
+        path = _attachment_dir(att.company_id, document_id) / att.stored_filename
+        if path.exists():
+            path.unlink()
+        db.delete(att)
+        db.commit()
+    return RedirectResponse(f"/documents/{document_id}#attachments", status_code=303)
 
 
 # ------------------------------------------------------------- credentials --

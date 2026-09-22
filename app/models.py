@@ -497,7 +497,9 @@ class Location(TimestampMixin, Base):
 class Document(TimestampMixin, Base):
     """Free-form documentation — procedures, network notes, vendor info,
     anything that isn't a credential. Body is plain text; no markdown
-    rendering yet, whitespace is preserved on display."""
+    rendering yet, whitespace is preserved on display.
+    embed_code stores a raw iframe snippet (Lucidchart, draw.io, etc.)
+    rendered on the document's own view page."""
 
     __tablename__ = "documents"
 
@@ -508,6 +510,7 @@ class Document(TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     category: Mapped[str | None] = mapped_column(String(80))
     body: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    embed_code: Mapped[str | None] = mapped_column(Text)
     is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_by_id: Mapped[int | None] = mapped_column(
@@ -520,6 +523,9 @@ class Document(TimestampMixin, Base):
     company: Mapped[Company] = relationship(back_populates="documents")
     created_by: Mapped[User | None] = relationship(foreign_keys=[created_by_id])
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
+    attachments: Mapped[list["DocumentAttachment"]] = relationship(
+        back_populates="document", cascade="all, delete-orphan", order_by="DocumentAttachment.filename"
+    )
 
 
 class Credential(TimestampMixin, Base):
@@ -639,6 +645,31 @@ class RelatedItem(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class DocumentAttachment(Base):
+    """A file attached to a Document, stored on the QNAP attachments volume.
+    stored_filename is the name on disk (UUID-prefixed to avoid collisions);
+    filename is what the user sees and downloads as."""
+
+    __tablename__ = "document_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    company_id: Mapped[int] = mapped_column(
+        ForeignKey("companies.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    stored_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(120))
+    size_bytes: Mapped[int | None] = mapped_column(Integer)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    document: Mapped[Document] = relationship(back_populates="attachments")
 
 
 class SyncRun(Base):

@@ -15,8 +15,54 @@
   <a class="btn secondary" href="/documents/{{ document.id }}/edit">Edit</a>
 </div>
 
+{% if document.embed_code %}
+<div class="panel" style="padding:16px">
+  <div style="width:100%;overflow:auto;border-radius:3px">
+    {{ document.embed_code | safe }}
+  </div>
+</div>
+{% endif %}
+
+{% if document.body %}
 <div class="panel">
   <div style="padding:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6">{{ document.body }}</div>
+</div>
+{% endif %}
+
+<div class="panel" id="attachments">
+  <div class="panel-head">
+    <h2>Attachments</h2>
+  </div>
+  {% if document.attachments %}
+  <table>
+    <thead><tr><th>File</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+    <tbody>
+      {% for att in document.attachments %}
+      <tr>
+        <td><a href="/documents/{{ document.id }}/attachments/{{ att.id }}/download">{{ att.filename }}</a></td>
+        <td>{{ "%.1f KB" % (att.size_bytes / 1024) if att.size_bytes else "—" }}</td>
+        <td>{{ att.uploaded_at.strftime("%b %-d, %Y") }}</td>
+        <td>
+          <form method="post" action="/documents/{{ document.id }}/attachments/{{ att.id }}/delete" style="display:inline">
+            <button class="btn secondary" style="padding:2px 9px;font-size:12px" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty"><p>No files attached yet.</p></div>
+  {% endif %}
+
+  <form method="post" action="/documents/{{ document.id }}/attachments/upload"
+        enctype="multipart/form-data" style="padding:14px 16px;border-top:1px solid var(--border-soft)">
+    <div style="display:flex;gap:10px;align-items:center">
+      <input type="file" name="file" style="flex:1">
+      <button class="btn secondary" type="submit">Upload</button>
+    </div>
+    <div class="sub" style="margin-top:6px">PDF, images, Word, Excel, or any file up to 50 MB.</div>
+  </form>
 </div>
 
 {% include "documentation/_related_items.html" %}

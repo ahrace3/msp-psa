@@ -46,6 +46,7 @@ services:
       # Encrypts stored credentials (Documentation layer). Generate with:
       #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
       CREDENTIAL_ENCRYPTION_KEY: ${CREDENTIAL_ENCRYPTION_KEY}
+      ATTACHMENTS_DIR: /srv/attachments
     command: >
       sh -c "alembic upgrade head &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"

@@ -26,8 +26,12 @@
         <label class="check"><input type="checkbox" name="is_pinned" {% if document and document.is_pinned %}checked{% endif %}> Pin to top of company page</label>
       </div>
       <div class="field full">
+        <label for="embed_code">Embed code <span class="sub" style="font-weight:400">(optional — paste Lucidchart, draw.io, or any iframe snippet)</span></label>
+        <textarea id="embed_code" name="embed_code" style="min-height:80px;font-family:'IBM Plex Mono',monospace;font-size:12px">{{ document.embed_code if document and document.embed_code else '' }}</textarea>
+      </div>
+      <div class="field full">
         <label for="body">Content</label>
-        <textarea id="body" name="body" style="min-height:320px;font-family:'IBM Plex Mono',monospace">{{ document.body if document else '' }}</textarea>
+        <textarea id="body" name="body" style="min-height:240px;font-family:'IBM Plex Mono',monospace">{{ document.body if document else '' }}</textarea>
       </div>
     </div>
     <div class="form-actions">
